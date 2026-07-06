@@ -1,0 +1,15 @@
+{
+  "name": "datadrop",
+  "version": "1.0.0",
+  "private": true,
+  "description": "DataDrop cloud storage — Cloudflare Workers backend",
+  "scripts": {
+    "deploy": "bash scripts/deploy.sh",
+    "dev": "wrangler dev workers/api-router/index.js",
+    "schema": "wrangler d1 execute datadrop-db --file=schema/schema.sql --remote",
+    "tail": "wrangler tail datadrop-api"
+  },
+  "devDependencies": {
+    "wrangler": "^4.0.0"
+  }
+}

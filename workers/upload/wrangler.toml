@@ -1,0 +1,37 @@
+name = "datadrop-upload"
+main = "index.js"
+compatibility_date = "2025-06-01"
+compatibility_flags = ["nodejs_compat"]
+account_id = "361136c11c967d9120a77c756b204167"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "datadrop-db"
+database_id = "c7147369-e5ae-4d6c-aebc-4c2f91932ca3"
+
+[[kv_namespaces]]
+binding = "KV"
+id = "367fe17c62f04183981ea5d5b89f702e"
+
+[[queues.producers]]
+binding = "QUEUE"
+queue = "datadrop-queue"
+
+[vars]
+B2_COLD_BUCKET = "datadrop-cold"
+B2_VAULT_BUCKET = "datadrop-vault"
+
+[secrets]
+# Set via: wrangler secret put <NAME>
+# CLERK_SECRET_KEY
+# B2_COLD_KEY_ID
+# B2_COLD_APP_KEY
+# B2_VAULT_KEY_ID
+# B2_VAULT_APP_KEY
+# B2_COLD_BUCKET_ID
+# B2_VAULT_BUCKET_ID
+# RESEND_API_KEY
+
+[[routes]]
+pattern = "api.datadrop.co.in/upload/*"
+zone_name = "datadrop.co.in"

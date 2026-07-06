@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>DataDrop</title>
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --bg-primary:    #07070D;
+      --bg-secondary:  #0F0F1A;
+      --bg-tertiary:   #161625;
+      --bg-card:       #11111E;
+      --bg-hover:      #1A1A2E;
+      --border:        #1E1E32;
+      --border-sec:    #252540;
+      --indigo:        #5B5EF4;
+      --cyan:          #00D4FF;
+      --green:         #00C27C;
+      --red:           #E24B4A;
+      --orange:        #F59E0B;
+      --text-p:        #EEEEF8;
+      --text-s:        #8888AA;
+      --text-t:        #55556A;
+    }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html { scroll-behavior: smooth; }
+    body {
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+      background: var(--bg-primary);
+      color: var(--text-p);
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+    }
+    #root { min-height: 100vh; }
+    ::-webkit-scrollbar { width: 6px; }
+    ::-webkit-scrollbar-track { background: var(--bg-primary); }
+    ::-webkit-scrollbar-thumb { background: var(--border-sec); border-radius: 3px; }
+    input, button, select, textarea { font-family: inherit; }
+    @keyframes dd-spin { to { transform: rotate(360deg); } }
+    @keyframes dd-fade { 0%,100%{opacity:.3} 50%{opacity:1} }
+    @keyframes dd-slide-up { from{opacity:0;transform:translateY(8px)} to{opacity:1;transform:translateY(0)} }
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+  <script type="module" src="/src/main.jsx"></script>
+</body>
+</html>
