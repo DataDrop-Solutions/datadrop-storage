@@ -1,12 +1,12 @@
 # DataDrop — Claude Code Context
 
-DataDrop is a privacy-first cloud storage service built entirely on Cloudflare's edge infrastructure. Users upload files to Backblaze B2 (cold storage) and Cloudflare R2 (hot storage), pay per GB/month via Razorpay wallet, and can optionally lock files in an end-to-end encrypted Vault.
+DataDrop is a privacy-first cloud storage service built entirely on Cloudflare's edge infrastructure. Users upload files to Backblaze B2 (cold storage and vault), pay per GB/month via Razorpay wallet, and can optionally lock files in an end-to-end encrypted Vault.
 
 ## Repository layout
 
 ```
 datadrop-storage/
-├── wrangler.toml              # Main worker config (datadrop-api, Account A)
+├── wrangler.toml              # Main worker config (datadrop-api)
 ├── package.json               # Dev deps: wrangler only
 ├── scripts/
 │   └── deploy.sh              # Full infrastructure bootstrap script
@@ -16,7 +16,7 @@ datadrop-storage/
 ├── workers/
 │   ├── api-router/            # Main router + route handlers (bundled into datadrop-api)
 │   │   ├── index.js           # Subdomain routing + scheduled + queue entrypoint
-│   │   ├── files.js           # File CRUD, folders, sharing, versions, trash
+│   │   ├── files.js           # File CRUD, folders, sharing, versions
 │   │   ├── shares.js          # Share link management
 │   │   ├── user.js            # Profile, wallet top-up, OTP, billing meter
 │   │   ├── vault.js           # E2EE vault (v1 PIN+AES, v2 ECDH P-256+per-file DEK)
@@ -33,8 +33,6 @@ datadrop-storage/
 │   ├── migration/             # Queue consumer: async file migrations
 │   ├── report/                # User-initiated file reports
 │   ├── webhook/               # Clerk + Razorpay webhook handlers
-│   ├── r2-hot/                # SEPARATE Cloudflare account (Account B), own wrangler.toml
-│   │   └── index.js           # Serves datadrop-hot R2 bucket via INTERNAL_SECRET auth
 │   └── shared/
 │       └── utils.js           # Shared utilities: auth, CORS, D1 helpers, B2 API, email
 └── app/                       # Frontend (React + Vite) — Cloudflare Pages project: datadrop-app
@@ -49,31 +47,28 @@ datadrop-storage/
 
 ## Infrastructure
 
-| Resource | Provider | Name | Account |
-|---|---|---|---|
-| Cloudflare Workers | Cloudflare | datadrop-api, datadrop-upload | Account A |
-| Cloudflare Workers | Cloudflare | datadrop-r2-hot | Account B |
-| D1 Database | Cloudflare | datadrop-db | Account A |
-| KV Namespace | Cloudflare | (id in wrangler.toml) | Account A |
-| R2 Bucket | Cloudflare | datadrop-hot | Account B |
-| R2 Bucket | Cloudflare | datadrop-backup | Account A |
-| Cold Storage | Backblaze B2 | datadrop-cold | — |
-| Vault Storage | Backblaze B2 | datadrop-vault | — |
-| Auth | Clerk | — | — |
-| Email | Resend | — | — |
-| SMS/OTP | MSG91 | — | — |
-| Payments | Razorpay | — | — |
-| Frontend | Cloudflare Pages | datadrop-app | Account A |
+| Resource | Provider | Name |
+|---|---|---|
+| Cloudflare Workers | Cloudflare | datadrop-api, datadrop-upload |
+| D1 Database | Cloudflare | datadrop-db |
+| KV Namespace | Cloudflare | (id in wrangler.toml) |
+| Cold Storage | Backblaze B2 | datadrop-cold |
+| Vault Storage | Backblaze B2 | datadrop-vault |
+| Auth | Clerk | — |
+| Email | Resend | — |
+| SMS/OTP | MSG91 | — |
+| Payments | Razorpay | — |
+| Frontend | Cloudflare Pages | datadrop-app |
 
 ## Subdomains and routing
 
 ```
-api.datadrop.co.in    → datadrop-api worker (main API, /user, /files, /vault, /teams, /shares)
+api.datadrop.co.in           → datadrop-api worker (main API, /user, /files, /vault, /teams, /shares)
 api.datadrop.co.in/upload/*  → datadrop-upload worker (chunked B2 uploads)
-files.datadrop.co.in  → download handler (CDN file delivery)
-stream.datadrop.co.in → stream handler (video streaming)
-admin.datadrop.co.in  → admin handler (internal admin panel)
-app.datadrop.co.in    → Cloudflare Pages (React frontend)
+files.datadrop.co.in         → datadrop-api worker (CDN file delivery)
+stream.datadrop.co.in        → datadrop-api worker (video streaming)
+admin.datadrop.co.in         → datadrop-api worker (internal admin panel)
+app.datadrop.co.in           → Cloudflare Pages (React frontend)
 ```
 
 ## Common commands
@@ -84,10 +79,6 @@ npx wrangler deploy
 
 # Deploy upload worker
 npx wrangler deploy --config workers/upload/wrangler.toml
-
-# Deploy r2-hot worker (Account B — different API token required)
-CLOUDFLARE_API_TOKEN=<account-b-token> CLOUDFLARE_ACCOUNT_ID=5b761b45997f1aa8bdcf455bbdf34324 \
-  npx wrangler deploy --config workers/r2-hot/wrangler.toml
 
 # Build and deploy frontend
 cd app && npm run build && npx wrangler pages deploy dist --project-name datadrop-app
@@ -101,9 +92,6 @@ npx wrangler d1 execute datadrop-db --remote --file=schema/schema.sql
 # Apply a migration
 npx wrangler d1 execute datadrop-db --remote --file=schema/migration_v4.sql
 
-# Full infrastructure bootstrap (first-time setup)
-bash scripts/deploy.sh
-
 # Frontend local dev (proxies to live API)
 cd app && npm run dev
 ```
@@ -112,7 +100,7 @@ cd app && npm run dev
 
 **Authentication:** All API requests carry an `X-Session-Token` header. `validateSession()` in `shared/utils.js` verifies it against Clerk's session API and caches results in KV (5-minute TTL) to avoid hitting Clerk on every request.
 
-**Storage split:** Regular files go to Backblaze B2 cold bucket. Vault files go to Backblaze B2 vault bucket. Hot/recently-accessed files are cached in Cloudflare R2 (datadrop-hot) served by the Account B worker via `INTERNAL_SECRET` auth.
+**Storage:** All files go to Backblaze B2. Regular files use the cold bucket, vault files use the vault bucket. No Cloudflare R2 in use.
 
 **E2EE Vault:**
 - V1 (legacy): PIN → PBKDF2 → AES-256 vault key → encrypt file client-side before upload
@@ -133,7 +121,7 @@ cd app && npm run dev
 
 ## Secrets
 
-All secrets are set via `wrangler secret put <NAME>`. They are NOT in any committed file. The full list is documented in `wrangler.toml` under the `# Secrets` comment and in `scripts/deploy.sh`. Key ones:
+All secrets are set via `wrangler secret put <NAME>`. They are NOT in any committed file.
 
 - `CLERK_SECRET_KEY` — Clerk backend secret for session validation
 - `B2_COLD_KEY_ID / B2_COLD_APP_KEY / B2_COLD_BUCKET_ID` — Backblaze cold storage
@@ -143,22 +131,19 @@ All secrets are set via `wrangler secret put <NAME>`. They are NOT in any commit
 - `MSG91_AUTH_KEY` — SMS OTP
 - `STREAM_SECRET` — Signed URL generation for streaming
 - `ADMIN_SECRET / ADMIN_PASSWORD` — Admin panel access
-- `INTERNAL_SECRET` — Shared between Account A and Account B for R2 hot access
-- `CF_API_TOKEN` — Cloudflare API token (used internally by some workers)
+- `CF_API_TOKEN` — Cloudflare API token
 
 ## CI/CD
 
 GitHub Actions (`.github/workflows/deploy.yml`) deploys automatically on every push to `main`:
-1. `datadrop-api` — main worker, Account A
-2. `datadrop-upload` — upload worker, Account A
-3. `datadrop-r2-hot` — hot storage worker, Account B
-4. Frontend → Cloudflare Pages (`datadrop-app`)
+1. `datadrop-api` — main worker
+2. `datadrop-upload` — upload worker
+3. Frontend → Cloudflare Pages (`datadrop-app`)
 
-Required GitHub Secrets: `CF_API_TOKEN`, `CF_ACCOUNT_ID`, `CF_ACCOUNT_B_TOKEN`, `CF_ACCOUNT_B_ID`
+Required GitHub Secrets: `CF_API_TOKEN`, `CF_ACCOUNT_ID`
 
 ## Things to avoid
 
 - **Never hardcode tokens or secrets** in worker code or wrangler.toml — use `wrangler secret put`
 - **Don't run `bash scripts/deploy.sh` on an existing live deployment** — it re-creates resources and overwrites wrangler.toml IDs
 - **Don't apply schema.sql to an existing DB** — only run incremental `migration_v*.sql` files
-- **Account B has different credentials** — always use `CF_ACCOUNT_B_TOKEN` when deploying r2-hot
