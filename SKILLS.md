@@ -8,20 +8,19 @@ Custom slash commands available in this repository.
 
 Deploy all Cloudflare Workers to production.
 
-**Usage:** `/deploy` — deploys all three workers in sequence
+**Usage:** `/deploy` — deploys both workers in sequence
 
 **What it does:**
 1. Deploys `datadrop-api` (main API worker) from repo root
 2. Deploys `datadrop-upload` from `workers/upload/wrangler.toml`
-3. Deploys `datadrop-r2-hot` from `workers/r2-hot/wrangler.toml` (Account B — requires separate token)
 
-**Requires:** `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID` set in environment (Account A), plus Account B credentials for r2-hot.
+**Requires:** `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID` set in environment.
 
 ---
 
 ## /deploy-api
 
-Deploy only the main `datadrop-api` worker (Account A).
+Deploy only the main `datadrop-api` worker.
 
 **Usage:** `/deploy-api`
 
@@ -33,7 +32,7 @@ Use this when you've changed anything under `workers/api-router/`, `workers/bill
 
 ## /deploy-upload
 
-Deploy only the `datadrop-upload` worker (Account A).
+Deploy only the `datadrop-upload` worker.
 
 **Usage:** `/deploy-upload`
 
@@ -98,16 +97,10 @@ The Vite dev server runs on port 3000 and proxies `/api/*` → `https://api.data
 
 ## /set-secret
 
-Set a Cloudflare Worker secret (Account A).
+Set a Cloudflare Worker secret.
 
 **Usage:** `/set-secret <SECRET_NAME>`
 
 **Command:** `wrangler secret put <SECRET_NAME>`
-
-For Account B (r2-hot) secrets, prepend the Account B credentials:
-```bash
-CLOUDFLARE_API_TOKEN=<account-b-token> CLOUDFLARE_ACCOUNT_ID=5b761b45997f1aa8bdcf455bbdf34324 \
-  wrangler secret put INTERNAL_SECRET --config workers/r2-hot/wrangler.toml
-```
 
 See `wrangler.toml` comments for the full list of required secrets.

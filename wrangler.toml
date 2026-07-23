@@ -47,6 +47,7 @@ crons = [
 [vars]
 B2_COLD_BUCKET  = "datadrop-cold"
 B2_VAULT_BUCKET = "datadrop-vault"
+B2_MAIN_BUCKET  = "datadrop-cold"
 CF_ACCOUNT_A_ID = "361136c11c967d9120a77c756b204167"
 VAST_TAG_URL    = ""
 MSG91_WIDGET_ID = "366678723661313235313433"
@@ -85,5 +86,6 @@ zone_name = "datadrop.co.in"
 # STREAM_SECRET        (openssl rand -hex 32)
 # ADMIN_SECRET         (openssl rand -hex 32)
 # ADMIN_PASSWORD       (your chosen password)
-# INTERNAL_SECRET      (openssl rand -hex 32) — shared with Account B r2-hot worker
 # CF_API_TOKEN
+# (B2_MAIN reuses B2_COLD credentials — datadrop-cold IS the main bucket)
+# RAZORPAY_MANDATE_PLAN_ID  ← Razorpay recurring plan ID for UPI autopay mandates

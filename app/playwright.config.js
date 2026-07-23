@@ -17,7 +17,7 @@ export default defineConfig({
   timeout: 120000,
   projects: [
     // Auth setup — runs once, saves session to tests/.auth/user.json
-    // NOTE: Because www.ashutosh2002@gmail.com uses Google OAuth,
+    // NOTE: Because the test account uses Google OAuth,
     // this requires running HEADED and logging in manually via Google.
     // Run: npx playwright test tests/auth.setup.js --headed --timeout=120000
     {
@@ -48,10 +48,10 @@ export default defineConfig({
       testIgnore: /api-probe/,
     },
 
-    // API probe tests — no auth needed, run standalone
+    // API probe & security tests — no auth needed, run standalone
     {
       name: 'api',
-      testMatch: /api-probe\.spec\.js/,
+      testMatch: /(api-probe|security-api)\.spec\.js/,
       use: { headless: true },
     },
   ],
