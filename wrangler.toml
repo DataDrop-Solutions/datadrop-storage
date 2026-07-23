@@ -50,7 +50,6 @@ B2_VAULT_BUCKET = "datadrop-vault"
 B2_MAIN_BUCKET  = "datadrop-cold"
 CF_ACCOUNT_A_ID = "361136c11c967d9120a77c756b204167"
 VAST_TAG_URL    = ""
-MSG91_WIDGET_ID = "366678723661313235313433"
 
 [[routes]]
 pattern = "api.datadrop.co.in/*"
