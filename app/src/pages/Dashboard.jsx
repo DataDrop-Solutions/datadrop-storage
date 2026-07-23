@@ -14,6 +14,7 @@ import TeamsView from '../components/TeamsView.jsx'
 import ReportModal from '../components/ReportModal.jsx'
 import UploadProgressPanel from '../components/UploadProgressPanel.jsx'
 import FileMoveModal from '../components/FileMoveModal.jsx'
+import LimitUpgradeModal from '../components/LimitUpgradeModal.jsx'
 
 function isVaultUpload(file) {
   return file.name?.startsWith('encrypted:') || file.type === 'application/octet-stream'
@@ -94,6 +95,7 @@ export default function Dashboard() {
   const toast = useToastMethods()
   const fileInputRef = useRef()
   const conflictResolverRef = useRef(null)
+  const folderConflictResolverRef = useRef(null)
 
   const [isMobile, setIsMobile] = useState(() => typeof window !== 'undefined' && window.innerWidth < 768)
 
@@ -125,8 +127,10 @@ export default function Dashboard() {
   const [selectedFolderIds, setSelectedFolderIds] = useState(new Set())
   const [showMoveModal,    setShowMoveModal]    = useState(false)
   const [showCopyModal,    setShowCopyModal]    = useState(false)
-  const [conflictTarget,    setConflictTarget]    = useState(null)
-  const [pinPending,        setPinPending]        = useState(null)  // function to run after vault unlock
+  const [bulkShareFiles,   setBulkShareFiles]   = useState(null)
+  const [conflictTarget,       setConflictTarget]       = useState(null)
+  const [folderConflictTarget, setFolderConflictTarget] = useState(null)
+  const [pinPending,           setPinPending]           = useState(null)  // function to run after vault unlock
   const [vaultProgress,     setVaultProgress]     = useState(null)  // { done, total, filename }
   const [userProfile,       setUserProfile]       = useState(null)  // from api.me()
   const [editShareTarget,   setEditShareTarget]   = useState(null)  // share to edit permissions
@@ -134,6 +138,10 @@ export default function Dashboard() {
   const [sharedFolderView,  setSharedFolderView]  = useState(null)  // { shareId, folderName, rootFolderId }
   const [sharedFolderPath,  setSharedFolderPath]  = useState([])   // breadcrumb for browsing shared folders
   const [sharedFolderFolderId, setSharedFolderFolderId] = useState(null) // current subfolder being browsed
+  const [largeFilesWarning,  setLargeFilesWarning]  = useState(null) // { proceed: fn, names: string[] }
+  const [limitExceededBlock, setLimitExceededBlock] = useState(null) // blocked upload info
+  const [showLimitUpgrade,   setShowLimitUpgrade]   = useState(false)
+  const [recoveryStatus,     setRecoveryStatus]     = useState(null) // payment recovery banner data
   const syncTimerRef = useRef(null)
 
   // Load content. silent=true: no loading spinner, keeps pending optimistic files not yet in D1.
@@ -193,6 +201,11 @@ export default function Dashboard() {
   // Fetch display name once
   useEffect(() => { api.me().then(setUserProfile).catch(() => {}) }, [])
 
+  // Load payment recovery status for banner
+  useEffect(() => {
+    api.billingRecovery().then(r => { if (r.inRecovery) setRecoveryStatus(r) }).catch(() => {})
+  }, [])
+
 
   function openFolder(folder) {
     if (currentFolder !== null) {
@@ -232,6 +245,21 @@ export default function Dashboard() {
     }
   }
 
+  function showFolderConflictDialog(name, itemType = 'folder') {
+    return new Promise(resolve => {
+      folderConflictResolverRef.current = resolve
+      setFolderConflictTarget({ name, itemType })
+    })
+  }
+
+  function resolveFolderConflict(result) {
+    setFolderConflictTarget(null)
+    if (folderConflictResolverRef.current) {
+      folderConflictResolverRef.current(result)
+      folderConflictResolverRef.current = null
+    }
+  }
+
   async function handleUpload(fileList) {
     const newItems = Array.from(fileList).map(f => ({
       id: Math.random(), name: f.name, progress: 0, done: false, error: null, file: f,
@@ -239,6 +267,12 @@ export default function Dashboard() {
     setUploading(prev => [...prev, ...newItems])
 
     for (const item of newItems) {
+      // Reject 0-byte files before hitting the API
+      if (item.file.size === 0) {
+        toast.error(`"${item.name}" is empty and cannot be uploaded`)
+        setUploading(prev => prev.filter(u => u.id !== item.id))
+        continue
+      }
       try {
         // Check for filename conflict in current folder
         const existing = files.find(f => f.filename === item.name)
@@ -254,14 +288,18 @@ export default function Dashboard() {
           continue
         }
 
-        // For replace: trash old file BEFORE uploading so dedup doesn't match it
+        // For replace: permanently delete old file BEFORE uploading so dedup doesn't match it
         if (decisionStr === 'replace' && existing) {
-          await api.deleteFile(existing.id)
+          await api.permanentDeleteFile(existing.id)
           setFiles(prev => prev.filter(f => f.id !== existing.id))
         }
 
-        // Rename — use custom name if provided, otherwise auto-generate "file (2).txt"
+        // Hoist before try so catch block can reference them for LIMIT_EXCEEDED retry
         let fileToUpload = item.file
+        let thumbData    = null
+        let skipDedup    = false
+
+        // Rename — use custom name if provided, otherwise auto-generate "file (2).txt"
         if (decisionStr === 'keep' && existing) {
           let newName
           if (decision?.customName) {
@@ -282,9 +320,9 @@ export default function Dashboard() {
         const isRename  = decisionStr === 'keep' && !!existing
         const isVersion = decisionStr === 'version'
         const isReplace = decisionStr === 'replace'
+        skipDedup = isRename || isVersion || isReplace
 
         // Generate thumbnail before upload so it ships with confirmUpload (no extra API call)
-        let thumbData = null
         if (!isVaultUpload(fileToUpload)) {
           try {
             if (fileToUpload.type.startsWith('image/')) thumbData = await generateThumb(fileToUpload)
@@ -293,7 +331,7 @@ export default function Dashboard() {
         }
 
         const result = await uploadFile(fileToUpload, {
-          folderId: currentFolder, skipDedup: isRename || isVersion || isReplace,
+          folderId: currentFolder, skipDedup,
           thumbData: thumbData || null,
         }, pct => {
           setUploading(prev => prev.map(u => u.id === item.id ? { ...u, progress: pct } : u))
@@ -342,6 +380,16 @@ export default function Dashboard() {
 
         setUploading(prev => prev.map(u => u.id === item.id ? { ...u, done: true, progress: 100 } : u))
       } catch (err) {
+        if (err.data?.code === 'LIMIT_EXCEEDED') {
+          setLimitExceededBlock({
+            fileToUpload, folderId: currentFolder, skipDedup, thumbData,
+            itemId: item.id,
+            capacityGb: (err.data.capacityBytes || 0) / (1024 ** 3),
+            limitRs: err.data.limit || 0,
+          })
+          setShowLimitUpgrade(true)
+          break
+        }
         setUploading(prev => prev.map(u => u.id === item.id ? { ...u, error: err.message } : u))
         if (err.data?.code === 'TRIAL_ENDED') {
           toast.error('Trial ended — go to Settings → Billing to add storage credit')
@@ -360,6 +408,37 @@ export default function Dashboard() {
     setTimeout(() => setUploading(prev => prev.filter(u => !u.done && !u.error)), 3000)
   }
 
+  async function retryBlockedUpload(block) {
+    if (!block) return
+    setLimitExceededBlock(null)
+    setShowLimitUpgrade(false)
+    const tempId = block.itemId
+    setUploading(prev => prev.map(u => u.id === tempId ? { ...u, error: null, progress: 0 } : u))
+    try {
+      const result = await uploadFile(block.fileToUpload, {
+        folderId: block.folderId, skipDedup: block.skipDedup,
+        thumbData: block.thumbData || null,
+      }, pct => {
+        setUploading(prev => prev.map(u => u.id === tempId ? { ...u, progress: pct } : u))
+      })
+      if (!result.duplicate) {
+        setFiles(prev => [...prev, {
+          id: result.fileId, filename: block.fileToUpload.name,
+          size_bytes: block.fileToUpload.size, mime_type: block.fileToUpload.type,
+          created_at: Date.now(), version_number: 1, _optimistic: true,
+        }])
+        toast.success(`"${block.fileToUpload.name}" uploaded`)
+      }
+      setUploading(prev => prev.map(u => u.id === tempId ? { ...u, done: true, progress: 100 } : u))
+      if (syncTimerRef.current) clearTimeout(syncTimerRef.current)
+      syncTimerRef.current = setTimeout(() => load(true), 6000)
+      setTimeout(() => setUploading(prev => prev.filter(u => !u.done && !u.error)), 3000)
+    } catch (err) {
+      setUploading(prev => prev.map(u => u.id === tempId ? { ...u, error: err.message } : u))
+      toast.error(`Upload failed: ${err.message}`)
+    }
+  }
+
   function handleDelete(file) {
     setDeleteTarget(file)
   }
@@ -368,12 +447,12 @@ export default function Dashboard() {
     const item = deleteTarget
     if (!item) return
     try {
-      if (item.filename !== undefined) {
-        await api.permanentDeleteFile(item.id)
-        setFiles(prev => prev.filter(f => f.id !== item.id))
-      } else {
+      if (item.item_type === 'folder') {
         await api.permanentDeleteFolder(item.id)
         setFolders(prev => prev.filter(f => f.id !== item.id))
+      } else {
+        await api.permanentDeleteFile(item.id)
+        setFiles(prev => prev.filter(f => f.id !== item.id))
       }
       toast.success('Permanently deleted')
     } catch (e) { toast.error(e.message) }
@@ -385,8 +464,8 @@ export default function Dashboard() {
       await api.updateFile(fileId, { filename: newName })
       setFiles(prev => prev.map(f => f.id === fileId ? { ...f, filename: newName } : f))
       toast.success('Renamed')
+      setRenameTarget(null)
     } catch (e) { toast.error(e.message) }
-    setRenameTarget(null)
   }
 
   async function handleRevokeShare(share) {
@@ -397,7 +476,7 @@ export default function Dashboard() {
     } catch (e) { toast.error(e.message) }
   }
 
-  async function encryptAndMoveToVault(file, targetFolderId = null, { deleteSource = true } = {}) {
+  async function encryptAndMoveToVault(file, targetFolderId = null, { deleteSource = true, overrideName } = {}) {
     const v1Key        = sessionStorage.getItem('dd_vault_key')
     const v2PrivKeyB64 = sessionStorage.getItem('dd_vault_private_key_pkcs8')
 
@@ -417,13 +496,14 @@ export default function Dashboard() {
         encBuffer = await encryptForVault(v1Key, plainBuffer)
       }
 
+      const uploadName = overrideName || file.filename
       const encBlob = new Blob([encBuffer])
-      const encFile = new File([encBlob], file.filename, { type: 'application/octet-stream' })
+      const encFile = new File([encBlob], uploadName, { type: 'application/octet-stream' })
 
       const realMime = file.mime_type || 'application/octet-stream'
       let thumbData = `encrypted:${realMime}`
       try {
-        const tempFile = new File([plainBuffer], file.filename, { type: realMime })
+        const tempFile = new File([plainBuffer], uploadName, { type: realMime })
         let rawThumb = null
         if (realMime.startsWith('image/')) rawThumb = await generateThumb(tempFile)
         else if (realMime.startsWith('video/')) rawThumb = await generateVideoThumb(tempFile)
@@ -468,6 +548,7 @@ export default function Dashboard() {
         await api.permanentDeleteFile(file.id)
         setFiles(prev => prev.filter(f => f.id !== file.id))
       }
+      return fileId
     } catch (e) {
       toast.error(`${deleteSource ? 'Move' : 'Copy'} to Vault failed: ${e.message}`)
       throw e
@@ -507,15 +588,16 @@ export default function Dashboard() {
 
   // Recursively mirror a Files folder into Vault, preserving structure.
   // onFileStart(filename) is called just before each file is encrypted.
-  async function moveFolderTreeToVault(sourceFolder, vaultParentFolderId, onFileStart, { deleteSource = true } = {}) {
+  async function moveFolderTreeToVault(sourceFolder, vaultParentFolderId, onFileStart, { deleteSource = true, overrideName } = {}) {
     let newVaultFolderId
+    const folderName = overrideName || sourceFolder.name
     try {
-      const res = await api.createFolder({ name: sourceFolder.name, parentId: vaultParentFolderId, isVault: true })
+      const res = await api.createFolder({ name: folderName, parentId: vaultParentFolderId, isVault: true })
       newVaultFolderId = res.folderId
     } catch (e) {
       if (e.status === 409) {
         const d = await api.listFiles(vaultParentFolderId ? { folder: vaultParentFolderId, vault: '1' } : { vault: '1' })
-        const existing = (d.folders || []).find(f => f.name === sourceFolder.name)
+        const existing = (d.folders || []).find(f => f.name === folderName)
         if (!existing) throw e
         newVaultFolderId = existing.id
       } else throw e
@@ -555,7 +637,7 @@ export default function Dashboard() {
   }
 
   function handleDeleteFolder(folder) {
-    setDeleteTarget(folder)
+    setDeleteTarget({ ...folder, item_type: 'folder' })
   }
 
   async function handleRenameFolder(folder, newName) {
@@ -613,7 +695,7 @@ export default function Dashboard() {
       toast.error('Some items could not be deleted')
       load()
     } else {
-      toast.success(`Permanently deleted ${total} item${total !== 1 ? 's' : ''}`)
+      toast.success('Permanently deleted')
     }
   }
 
@@ -669,15 +751,16 @@ export default function Dashboard() {
   }
 
 
-  async function encryptAndMoveToTeam(file, teamId, teamKeyB64, targetFolderId, { deleteSource = true } = {}) {
+  async function encryptAndMoveToTeam(file, teamId, teamKeyB64, targetFolderId, { deleteSource = true, overrideName } = {}) {
     const resp    = await fetchFileWithAuth(file.id)
     const rawBuf  = await resp.arrayBuffer()
     const realMime = file.mime_type || 'application/octet-stream'
     const encBuf  = await encryptForVault(teamKeyB64, rawBuf)
     const encMime = `encrypted:${realMime}`
+    const uploadName = overrideName || file.filename
     let thumbData = null
     try {
-      const tempFile = new File([rawBuf], file.filename, { type: realMime })
+      const tempFile = new File([rawBuf], uploadName, { type: realMime })
       let rawThumb = null
       if (realMime.startsWith('image/')) rawThumb = await generateThumb(tempFile)
       else if (realMime.startsWith('video/')) rawThumb = await generateVideoThumb(tempFile)
@@ -687,20 +770,22 @@ export default function Dashboard() {
         thumbData = 'enc_thumb:' + btoa(String.fromCharCode(...new Uint8Array(encThumbBuf)))
       }
     } catch (_) {}
-    const encFile = new File([encBuf], file.filename, { type: 'application/octet-stream' })
-    await uploadFile(encFile, { mimeType: encMime, folderId: targetFolderId, isVault: false, isEncrypted: true, teamId, skipDedup: true, thumbData })
+    const encFile = new File([encBuf], uploadName, { type: 'application/octet-stream' })
+    const { fileId } = await uploadFile(encFile, { mimeType: encMime, folderId: targetFolderId, isVault: false, isEncrypted: true, teamId, skipDedup: true, thumbData })
     if (deleteSource) await api.permanentDeleteFile(file.id)
+    return fileId
   }
 
-  async function moveFolderTreeToTeam(sourceFolder, teamId, teamKeyB64, teamParentFolderId, onFileStart, { deleteSource = true } = {}) {
+  async function moveFolderTreeToTeam(sourceFolder, teamId, teamKeyB64, teamParentFolderId, onFileStart, { deleteSource = true, overrideName } = {}) {
     let newTeamFolderId
+    const folderName = overrideName || sourceFolder.name
     try {
-      const res = await api.createTeamFolder(teamId, { name: sourceFolder.name, parentId: teamParentFolderId || null })
+      const res = await api.createTeamFolder(teamId, { name: folderName, parentId: teamParentFolderId || null })
       newTeamFolderId = res.folderId
     } catch (e) {
       if (e.status === 409) {
         const d = await api.listTeamFiles(teamId, teamParentFolderId ? { folderId: teamParentFolderId } : {})
-        const existing = (d.folders || []).find(f => f.name === sourceFolder.name)
+        const existing = (d.folders || []).find(f => f.name === folderName)
         if (!existing) throw e
         newTeamFolderId = existing.id
       } else throw e
@@ -716,29 +801,32 @@ export default function Dashboard() {
     if (deleteSource) try { await api.permanentDeleteFolder(sourceFolder.id) } catch (_) {}
   }
 
-  async function copyFileToFiles(file, targetFolderId) {
+  async function copyFileToFiles(file, targetFolderId, { overrideName } = {}) {
     const resp = await fetchFileWithAuth(file.id)
     const rawBuf = await resp.arrayBuffer()
     const mime = file.mime_type || 'application/octet-stream'
+    const uploadName = overrideName || file.filename
     let thumbData = null
     try {
-      const tempFile = new File([rawBuf], file.filename, { type: mime })
+      const tempFile = new File([rawBuf], uploadName, { type: mime })
       if (mime.startsWith('image/')) thumbData = await generateThumb(tempFile)
       else if (mime.startsWith('video/')) thumbData = await generateVideoThumb(tempFile)
     } catch (_) {}
-    const copyFile = new File([rawBuf], file.filename, { type: mime })
-    await uploadFile(copyFile, { mimeType: mime, folderId: targetFolderId, skipDedup: false, thumbData })
+    const copyFile = new File([rawBuf], uploadName, { type: mime })
+    const { fileId } = await uploadFile(copyFile, { mimeType: mime, folderId: targetFolderId, skipDedup: true, thumbData })
+    return fileId
   }
 
-  async function copyFolderTreeToFiles(sourceFolder, targetFolderId, onFileStart) {
+  async function copyFolderTreeToFiles(sourceFolder, targetFolderId, onFileStart, { overrideName } = {}) {
     let newFolderId
+    const folderName = overrideName || sourceFolder.name
     try {
-      const res = await api.createFolder({ name: sourceFolder.name, parentId: targetFolderId || null })
+      const res = await api.createFolder({ name: folderName, parentId: targetFolderId || null })
       newFolderId = res.folderId
     } catch (e) {
       if (e.status === 409) {
         const d = await api.listFiles(targetFolderId ? { folder: targetFolderId } : {})
-        const existing = (d.folders || []).find(f => f.name === sourceFolder.name)
+        const existing = (d.folders || []).find(f => f.name === folderName)
         if (!existing) throw e
         newFolderId = existing.id
       } else throw e
@@ -751,6 +839,95 @@ export default function Dashboard() {
     for (const subfolder of (d.folders || [])) {
       await copyFolderTreeToFiles(subfolder, newFolderId, onFileStart)
     }
+  }
+
+  async function resolveFileConflicts(selectedFiles, destSection, destFolderId, destTeamId) {
+    let destFiles = []
+    try {
+      if (destSection === 'teams' && destTeamId) {
+        const d = await api.listTeamFiles(destTeamId, destFolderId ? { folderId: destFolderId } : {})
+        destFiles = d.files || []
+      } else {
+        const params = {}
+        if (destSection === 'vault') params.vault = '1'
+        if (destFolderId) params.folder = destFolderId
+        const d = await api.listFiles(params)
+        destFiles = d.files || []
+      }
+    } catch (_) {}
+    const destNames = new Set(destFiles.map(f => f.filename))
+    const decisions = new Map()
+    for (const file of selectedFiles) {
+      if (destNames.has(file.filename)) {
+        const result = await showFolderConflictDialog(file.filename, 'file')
+        decisions.set(file.id, result)
+      }
+    }
+    return decisions
+  }
+
+  async function resolveFolderConflicts(selectedFolders, destSection, destFolderId, destTeamId) {
+    let destFolders = []
+    try {
+      if (destSection === 'teams' && destTeamId) {
+        const d = await api.listTeamFiles(destTeamId, destFolderId ? { folderId: destFolderId } : {})
+        destFolders = d.folders || []
+      } else {
+        const params = {}
+        if (destSection === 'vault') params.vault = '1'
+        if (destFolderId) params.folder = destFolderId
+        const d = await api.listFiles(params)
+        destFolders = d.folders || []
+      }
+    } catch (_) {}
+    const destByName = new Set(destFolders.map(f => f.name))
+    const decisions = new Map()
+    for (const folder of selectedFolders) {
+      if (destByName.has(folder.name)) {
+        const result = await showFolderConflictDialog(folder.name)
+        decisions.set(folder.id, result)
+      }
+    }
+    return decisions
+  }
+
+  async function handleMoveModalConfirm_teams(fileIds, folderObjs, teamId, teamKeyB64, folderId) {
+    const selectedFiles = files.filter(f => fileIds.includes(f.id))
+    const conflicts = await resolveFileConflicts(selectedFiles, 'teams', folderId, teamId)
+    const folderConflicts = await resolveFolderConflicts(folderObjs, 'teams', folderId, teamId)
+    const folderFileLists = await Promise.all(folderObjs.map(f => collectFolderFiles(f.id)))
+    const totalFileCount = selectedFiles.length + folderFileLists.reduce((n, fl) => n + fl.length, 0)
+    setVaultProgress({ done: 0, total: totalFileCount, filename: '' })
+    let done = 0, success = 0
+    for (const file of selectedFiles) {
+      setVaultProgress({ done: done++, total: totalFileCount, filename: file.filename })
+      const conf = conflicts.get(file.id)
+      if (conf?.action === 'cancel') continue
+      try {
+        const overrideName = conf?.action === 'rename' ? conf.customName : undefined
+        await encryptAndMoveToTeam(file, teamId, teamKeyB64, folderId, { overrideName })
+        success++
+        setFiles(prev => prev.filter(f => f.id !== file.id))
+      } catch (e) {
+        toast.error(`Failed to move "${file.filename}": ${e.message || 'unknown error'}`)
+      }
+    }
+    for (const folder of folderObjs) {
+      const fc = folderConflicts.get(folder.id)
+      if (fc?.action === 'cancel') continue
+      try {
+        const overrideName = fc?.action === 'rename' ? fc.customName : undefined
+        await moveFolderTreeToTeam(folder, teamId, teamKeyB64, folderId, filename => {
+          setVaultProgress({ done: done++, total: totalFileCount, filename })
+        }, { overrideName })
+        success++
+      } catch (e) {
+        toast.error(`Failed to move folder: ${e.message || 'unknown error'}`)
+      }
+    }
+    setVaultProgress(null)
+    if (success > 0) toast.success(`Moved ${success} item(s) to workspace`)
+    load()
   }
 
   async function handleMoveModalConfirm(section, folderId, teamId = null) {
@@ -767,25 +944,12 @@ export default function Dashboard() {
         return
       }
       const selectedFiles = files.filter(f => fileIds.includes(f.id))
-      const folderFileLists = await Promise.all(folderObjs.map(f => collectFolderFiles(f.id)))
-      const totalFileCount = selectedFiles.length + folderFileLists.reduce((n, fl) => n + fl.length, 0)
-      setVaultProgress({ done: 0, total: totalFileCount, filename: '' })
-      let done = 0, success = 0
-      for (const file of selectedFiles) {
-        setVaultProgress({ done: done++, total: totalFileCount, filename: file.filename })
-        try { await encryptAndMoveToTeam(file, teamId, teamKeyB64, folderId); success++ } catch (_) {}
+      const largeOnes = selectedFiles.filter(f => (f.size_bytes || 0) > 50 * 1024 * 1024)
+      if (largeOnes.length > 0) {
+        setLargeFilesWarning({ names: largeOnes.map(f => f.filename), proceed: () => handleMoveModalConfirm_teams(fileIds, folderObjs, teamId, teamKeyB64, folderId) })
+        return
       }
-      for (const folder of folderObjs) {
-        try {
-          await moveFolderTreeToTeam(folder, teamId, teamKeyB64, folderId, filename => {
-            setVaultProgress({ done: done++, total: totalFileCount, filename })
-          })
-          success++
-        } catch (_) {}
-      }
-      setVaultProgress(null)
-      if (success > 0) toast.success(`Moved ${success} item(s) to workspace`)
-      load()
+      await handleMoveModalConfirm_teams(fileIds, folderObjs, teamId, teamKeyB64, folderId)
       return
     }
 
@@ -798,6 +962,8 @@ export default function Dashboard() {
         return
       }
       const selectedFiles = files.filter(f => fileIds.includes(f.id))
+      const conflicts = await resolveFileConflicts(selectedFiles, 'vault', folderId, null)
+      const folderConflicts = await resolveFolderConflicts(folderObjs, 'vault', folderId, null)
       // Count all files upfront (files + files inside selected folders) for the progress bar
       const folderFileLists = await Promise.all(folderObjs.map(f => collectFolderFiles(f.id)))
       const totalFileCount  = selectedFiles.length + folderFileLists.reduce((n, fl) => n + fl.length, 0)
@@ -806,13 +972,22 @@ export default function Dashboard() {
       let success = 0
       for (const file of selectedFiles) {
         setVaultProgress({ done: done++, total: totalFileCount, filename: file.filename })
-        try { await encryptAndMoveToVault(file, folderId); success++ } catch (_) {}
+        const conf = conflicts.get(file.id)
+        if (conf?.action === 'cancel') continue
+        try {
+          const overrideName = conf?.action === 'rename' ? conf.customName : undefined
+          await encryptAndMoveToVault(file, folderId, { overrideName })
+          success++
+        } catch (_) {}
       }
       for (const folder of folderObjs) {
+        const fc = folderConflicts.get(folder.id)
+        if (fc?.action === 'cancel') continue
         try {
+          const overrideName = fc?.action === 'rename' ? fc.customName : undefined
           await moveFolderTreeToVault(folder, folderId, filename => {
             setVaultProgress({ done: done++, total: totalFileCount, filename })
-          })
+          }, { overrideName })
           success += folderFileLists[folderObjs.indexOf(folder)].length
         } catch (_) {}
       }
@@ -820,18 +995,30 @@ export default function Dashboard() {
       if (success > 0) toast.success(`${success} item(s) moved to Vault`)
       load()
     } else {
-      try {
-        await Promise.all([
-          ...fileIds.map(id => api.updateFile(id, { folderId: folderId ?? null })),
-          ...folderObjs.map(f => api.renameFolder(f.id, { parentId: folderId ?? null })),
-        ])
-        const movedLabel = [
-          fileIds.length > 0 ? `${fileIds.length} file(s)` : '',
-          folderObjs.length > 0 ? `${folderObjs.length} folder(s)` : '',
-        ].filter(Boolean).join(' and ')
-        toast.success(`Moved ${movedLabel}`)
-        load(true)
-      } catch(e) { toast.error(e.message || 'Move failed'); load() }
+      const selectedFiles = files.filter(f => fileIds.includes(f.id))
+      const conflicts = await resolveFileConflicts(selectedFiles, 'files', folderId, null)
+      const folderConflicts = await resolveFolderConflicts(folderObjs, 'files', folderId, null)
+      let success = 0
+      for (const file of selectedFiles) {
+        const conf = conflicts.get(file.id)
+        if (conf?.action === 'cancel') continue
+        try {
+          const newName = conf?.action === 'rename' ? conf.customName : undefined
+          await api.updateFile(file.id, { folderId: folderId ?? null, ...(newName ? { filename: newName } : {}) })
+          success++
+        } catch(e) { toast.error(e.message || 'Move failed') }
+      }
+      for (const folder of folderObjs) {
+        const fc = folderConflicts.get(folder.id)
+        if (fc?.action === 'cancel') continue
+        try {
+          const newName = fc?.action === 'rename' ? fc.customName : undefined
+          await api.renameFolder(folder.id, { parentId: folderId ?? null, ...(newName ? { name: newName } : {}) })
+          success++
+        } catch(e) { toast.error(e.message || 'Move failed') }
+      }
+      if (success > 0) { toast.success(`Moved ${success} item(s)`); load(true) }
+      else load()
     }
   }
 
@@ -844,19 +1031,30 @@ export default function Dashboard() {
       const teamKeyB64 = teamId ? sessionStorage.getItem(`team_key_${teamId}`) : null
       if (!teamKeyB64) { toast.error('Workspace is locked — open it in Secured Sharing first'); return }
       const selectedFiles = files.filter(f => fileIds.includes(f.id))
+      const conflicts = await resolveFileConflicts(selectedFiles, 'teams', folderId, teamId)
+      const folderConflicts = await resolveFolderConflicts(folderObjs, 'teams', folderId, teamId)
       const folderFileLists = await Promise.all(folderObjs.map(f => collectFolderFiles(f.id)))
       const totalFileCount = selectedFiles.length + folderFileLists.reduce((n, fl) => n + fl.length, 0)
       setVaultProgress({ done: 0, total: totalFileCount, filename: '' })
       let done = 0, success = 0
       for (const file of selectedFiles) {
         setVaultProgress({ done: done++, total: totalFileCount, filename: file.filename })
-        try { await encryptAndMoveToTeam(file, teamId, teamKeyB64, folderId, { deleteSource: false }); success++ } catch (_) {}
+        const conf = conflicts.get(file.id)
+        if (conf?.action === 'cancel') continue
+        try {
+          const overrideName = conf?.action === 'rename' ? conf.customName : undefined
+          await encryptAndMoveToTeam(file, teamId, teamKeyB64, folderId, { deleteSource: false, overrideName })
+          success++
+        } catch (_) {}
       }
       for (const folder of folderObjs) {
+        const fc = folderConflicts.get(folder.id)
+        if (fc?.action === 'cancel') continue
         try {
+          const overrideName = fc?.action === 'rename' ? fc.customName : undefined
           await moveFolderTreeToTeam(folder, teamId, teamKeyB64, folderId, filename => {
             setVaultProgress({ done: done++, total: totalFileCount, filename })
-          }, { deleteSource: false })
+          }, { deleteSource: false, overrideName })
           success++
         } catch (_) {}
       }
@@ -870,6 +1068,8 @@ export default function Dashboard() {
       const v2Key = sessionStorage.getItem('dd_vault_private_key_pkcs8')
       if (!v1Key && !v2Key) { toast.error('Vault is locked — unlock it first'); return }
       const selectedFiles = files.filter(f => fileIds.includes(f.id))
+      const conflicts = await resolveFileConflicts(selectedFiles, 'vault', folderId, null)
+      const folderConflicts = await resolveFolderConflicts(folderObjs, 'vault', folderId, null)
       const folderFileLists = await Promise.all(folderObjs.map(f => collectFolderFiles(f.id)))
       const totalFileCount = selectedFiles.length + folderFileLists.reduce((n, fl) => n + fl.length, 0)
       let done = 0
@@ -877,13 +1077,22 @@ export default function Dashboard() {
       let success = 0
       for (const file of selectedFiles) {
         setVaultProgress({ done: done++, total: totalFileCount, filename: file.filename })
-        try { await encryptAndMoveToVault(file, folderId, { deleteSource: false }); success++ } catch (_) {}
+        const conf = conflicts.get(file.id)
+        if (conf?.action === 'cancel') continue
+        try {
+          const overrideName = conf?.action === 'rename' ? conf.customName : undefined
+          await encryptAndMoveToVault(file, folderId, { deleteSource: false, overrideName })
+          success++
+        } catch (_) {}
       }
       for (const folder of folderObjs) {
+        const fc = folderConflicts.get(folder.id)
+        if (fc?.action === 'cancel') continue
         try {
+          const overrideName = fc?.action === 'rename' ? fc.customName : undefined
           await moveFolderTreeToVault(folder, folderId, filename => {
             setVaultProgress({ done: done++, total: totalFileCount, filename })
-          }, { deleteSource: false })
+          }, { deleteSource: false, overrideName })
           success++
         } catch (_) {}
       }
@@ -891,6 +1100,8 @@ export default function Dashboard() {
       if (success > 0) toast.success(`Copied ${success} item(s) to Vault`)
     } else {
       const selectedFiles = files.filter(f => fileIds.includes(f.id))
+      const conflicts = await resolveFileConflicts(selectedFiles, 'files', folderId, null)
+      const folderConflicts = await resolveFolderConflicts(folderObjs, 'files', folderId, null)
       const folderFileLists = await Promise.all(folderObjs.map(f => collectFolderFiles(f.id)))
       const totalFileCount = selectedFiles.length + folderFileLists.reduce((n, fl) => n + fl.length, 0)
       let done = 0
@@ -898,13 +1109,22 @@ export default function Dashboard() {
       let success = 0
       for (const file of selectedFiles) {
         setVaultProgress({ done: done++, total: totalFileCount, filename: file.filename })
-        try { await copyFileToFiles(file, folderId); success++ } catch (_) {}
+        const conf = conflicts.get(file.id)
+        if (conf?.action === 'cancel') continue
+        try {
+          const overrideName = conf?.action === 'rename' ? conf.customName : undefined
+          await copyFileToFiles(file, folderId, { overrideName })
+          success++
+        } catch (_) {}
       }
       for (const folder of folderObjs) {
+        const fc = folderConflicts.get(folder.id)
+        if (fc?.action === 'cancel') continue
         try {
+          const overrideName = fc?.action === 'rename' ? fc.customName : undefined
           await copyFolderTreeToFiles(folder, folderId, filename => {
             setVaultProgress({ done: done++, total: totalFileCount, filename })
-          })
+          }, { overrideName })
           success++
         } catch (_) {}
       }
@@ -958,7 +1178,7 @@ export default function Dashboard() {
   }
 
   const navItems = [
-    { key: 'files',    Icon: IcoFiles,    label: 'Files',            desc: 'Shareable · versioned · encrypted at rest' },
+    { key: 'files',    Icon: IcoFiles,    label: 'Files',            desc: 'Shareable · versioned · encrypted in transit' },
     { key: 'vault',    Icon: IcoVault,    label: 'Vault',            desc: 'E2EE · encrypted before leaving device' },
     { key: 'teams',    Icon: IcoTeams,    label: 'Secured Sharing',  desc: 'E2EE · account-to-account only' },
   ]
@@ -981,20 +1201,20 @@ export default function Dashboard() {
     const usedGb   = meter ? (meter.storageBytes || 0) / (1024**3) : 0
     const limitGb  = meter?.maxGb || 5
     const pct      = Math.min(100, (usedGb / limitGb) * 100)
-    const barColor = pct >= 100 ? '#E24B4A' : pct >= 80 ? '#F59E0B' : '#5B5EF4'
+    const barColor = pct >= 100 ? '#E24B4A' : pct >= 80 ? '#F59E0B' : '#6366F1'
     const cost     = meter?.estimatedCost?.toFixed(2) || '0.00'
 
     return (
       <div style={{ display:'flex',flexDirection:'column',height:'100%' }}>
         {/* Logo */}
-        <div style={{ padding:'18px 16px 20px', borderBottom:'1px solid #1E1E32' }}>
+        <div style={{ padding:'18px 16px 20px', borderBottom:'1px solid rgba(255,255,255,.07)' }}>
           <div style={{ display:'flex',alignItems:'center',gap:10 }}>
             <svg width={22} height={22} viewBox="0 0 28 28" fill="none">
-              <rect width="28" height="28" rx="7" fill="#5B5EF4"/>
+              <rect width="28" height="28" rx="7" fill="#6366F1"/>
               <path d="M11 4h6v10h4l-7 8-7-8h4z" fill="white"/>
             </svg>
             <span style={{ fontFamily:"'Space Grotesk',sans-serif",fontSize:22,fontWeight:800,letterSpacing:'-0.04em',lineHeight:1 }}>
-              <span style={{ color:'#EEEEF8' }}>Data</span><span style={{ color:'#5B5EF4' }}>Drop</span>
+              <span style={{ color:'#EDEDFF' }}>Data</span><span style={{ color:'#6366F1' }}>Drop</span>
             </span>
           </div>
         </div>
@@ -1007,84 +1227,63 @@ export default function Dashboard() {
               <button key={n.key}
                 onClick={() => { setView(n.key); onNavigate?.() }}
                 style={{ display:'flex',alignItems:'flex-start',gap:9,padding:'6px 12px',
-                          color:active?'#EEEEF8':'#8888AA',
-                          background:active?'rgba(91,94,244,0.1)':'transparent',
+                          color:active?'#EDEDFF':'#8888AA',
+                          background:active?'rgba(99,102,241,0.1)':'transparent',
                           borderRadius:8,cursor:'pointer',
                           border:'none',
                           width:'100%',textAlign:'left',transition:'color 120ms,background 120ms' }}
-                onMouseEnter={e=>{ if(!active){e.currentTarget.style.color='#EEEEF8';e.currentTarget.style.background='rgba(255,255,255,0.04)'} }}
+                onMouseEnter={e=>{ if(!active){e.currentTarget.style.color='#EDEDFF';e.currentTarget.style.background='rgba(255,255,255,0.04)'} }}
                 onMouseLeave={e=>{ if(!active){e.currentTarget.style.color='#8888AA';e.currentTarget.style.background='transparent'} }}>
                 <span style={{ opacity:active?1:0.7, flexShrink:0, marginTop:3 }}><n.Icon /></span>
                 <div style={{ flex:1, minWidth:0 }}>
                   <div style={{ display:'flex',alignItems:'center',gap:4 }}>
                     <span style={{ fontSize:14,fontWeight:active?600:500,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap',flex:1 }}>{n.label}</span>
-                    {active && <div style={{ width:4,height:4,borderRadius:'50%',background:'#5B5EF4',flexShrink:0 }} />}
+                    {active && <div style={{ width:4,height:4,borderRadius:'50%',background:'#6366F1',flexShrink:0 }} />}
                   </div>
-                  <div style={{ fontSize:10,color:active?'rgba(238,238,248,0.4)':'#55556A',marginTop:1,fontWeight:400,lineHeight:1.4 }}>{n.desc}</div>
+                  <div style={{ fontSize:10,color:active?'rgba(238,238,248,0.4)':'#7A7AAA',marginTop:1,fontWeight:400,lineHeight:1.4 }}>{n.desc}</div>
                 </div>
               </button>
             )
           })}
 
-          <div style={{ height:1,background:'rgba(255,255,255,0.05)',margin:'6px 4px 4px' }} />
+        </div>
 
+        {/* Settings button — standalone above user section */}
+        <div style={{ borderTop:'1px solid rgba(255,255,255,.07)', padding:'8px 8px' }}>
           <button
             onClick={() => { setView('settings'); onNavigate?.() }}
             style={{ display:'flex',alignItems:'center',gap:9,padding:'8px 12px',
                       fontSize:14,fontWeight:view==='settings'?600:500,
-                      color:view==='settings'?'#EEEEF8':'#8888AA',
-                      background:view==='settings'?'rgba(91,94,244,0.1)':'transparent',
+                      color:view==='settings'?'#EDEDFF':'#8888AA',
+                      background:view==='settings'?'rgba(99,102,241,0.1)':'transparent',
                       borderRadius:8,cursor:'pointer',border:'none',
                       width:'100%',textAlign:'left',transition:'color 120ms,background 120ms' }}
-            onMouseEnter={e=>{ if(view!=='settings'){e.currentTarget.style.color='#EEEEF8';e.currentTarget.style.background='rgba(255,255,255,0.04)'} }}
+            onMouseEnter={e=>{ if(view!=='settings'){e.currentTarget.style.color='#EDEDFF';e.currentTarget.style.background='rgba(255,255,255,0.04)'} }}
             onMouseLeave={e=>{ if(view!=='settings'){e.currentTarget.style.color='#8888AA';e.currentTarget.style.background='transparent'} }}>
             <span style={{ opacity: view==='settings' ? 1 : 0.7 }}><IcoGear /></span>
-            Settings
-            {view==='settings' && <div style={{ marginLeft:'auto', width:4, height:4, borderRadius:'50%', background:'#5B5EF4', flexShrink:0 }} />}
+            Settings & Billing
+            {view==='settings' && <div style={{ marginLeft:'auto', width:4, height:4, borderRadius:'50%', background:'#6366F1', flexShrink:0 }} />}
           </button>
         </div>
 
-        {/* Storage meter */}
-        {meter && (
-          <div style={{ padding:'12px 16px',borderTop:'1px solid #1E1E32',cursor:'pointer' }}
-            onClick={() => { setView('settings'); onNavigate?.() }}>
-            <div style={{ display:'flex',justifyContent:'space-between',fontSize:11,marginBottom:5 }}>
-              <span style={{ fontFamily:"'JetBrains Mono',monospace",color:'#EEEEF8',fontWeight:500 }}>
-                {usedGb < 1 ? `${(usedGb*1024).toFixed(0)} MB` : `${usedGb.toFixed(2)} GB`}
-              </span>
-              <span style={{ color:'#8888AA' }}>₹{cost}/mo</span>
-            </div>
-            <div style={{ height:3,background:'#1E1E32',borderRadius:99 }}>
-              <div style={{ width:`${pct}%`,height:'100%',background:barColor,borderRadius:99,transition:'width .3s' }} />
-            </div>
-            {meter.status === 'trial' && meter.trialEndsAt ? (
-              <div style={{ fontSize:10,color:'#F59E0B',marginTop:4,fontWeight:500 }}>
-                Free trial · expires {new Date(meter.trialEndsAt).toLocaleDateString('en-IN',{day:'numeric',month:'short'})}
-              </div>
-            ) : (
-              <div style={{ fontSize:10,color:'#55556A',marginTop:4 }}>Billing and usage</div>
-            )}
-          </div>
-        )}
-
         {/* User section */}
-        <div style={{ padding:'12px 16px',borderTop:'1px solid #1E1E32',display:'flex',alignItems:'center',gap:10 }}>
+        <div style={{ padding:'12px 16px',borderTop:'1px solid rgba(255,255,255,.07)',display:'flex',alignItems:'center',gap:10 }}>
           <div style={{ width:32,height:32,borderRadius:'50%',flexShrink:0,
-                         background:'linear-gradient(135deg,#5B5EF4,#3B82F6)',
+                         background:'linear-gradient(135deg,#6366F1,#6366F1)',
                          display:'flex',alignItems:'center',justifyContent:'center',
                          fontSize:13,fontWeight:700,color:'#fff' }}>
             {displayName[0].toUpperCase()}
           </div>
           <div style={{ flex:1,minWidth:0 }}>
-            <div style={{ fontSize:12,fontWeight:600,color:'#EEEEF8',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap' }}>
-              {displayName}
+            <div style={{ fontSize:12,fontWeight:600,color:'#EDEDFF',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap' }}>
+              {userEmail || displayName}
             </div>
             <button onClick={() => signOut()}
-              style={{ fontSize:11,fontWeight:500,color:'#55556A',background:'none',
+              style={{ fontSize:11,fontWeight:500,color:'#7A7AAA',background:'none',
                         border:'none',cursor:'pointer',padding:0,marginTop:2,
                         display:'block',textAlign:'left',transition:'color 150ms' }}
               onMouseEnter={e=>{ e.currentTarget.style.color='#E24B4A' }}
-              onMouseLeave={e=>{ e.currentTarget.style.color='#55556A' }}>
+              onMouseLeave={e=>{ e.currentTarget.style.color='#7A7AAA' }}>
               Sign out
             </button>
           </div>
@@ -1096,18 +1295,18 @@ export default function Dashboard() {
   const totalSel = selectedFileIds.size + selectedFolderIds.size
 
   return (
-    <div style={{ display:'flex',height:'100vh',overflow:'hidden',background:'#07070D' }}>
+    <div style={{ display:'flex',height:'100vh',overflow:'hidden',background:'#08081A' }}>
 
       {/* Mobile sidebar overlay */}
       {sidebarOpen && (
-        <div style={{ position:'fixed',inset:0,background:'rgba(7,7,13,0.7)',zIndex:40,backdropFilter:'blur(4px)' }}
+        <div style={{ position:'fixed',inset:0,background:'rgba(8,8,26,0.7)',zIndex:40,backdropFilter:'blur(4px)' }}
           onClick={() => setSidebarOpen(false)} />
       )}
 
       {/* Mobile sidebar drawer */}
       {isMobile && (
         <div style={{ position:'fixed',left:sidebarOpen?0:-260,top:0,bottom:0,zIndex:50,width:248,
-                       background:'#0F0F1A',borderRight:'1px solid #1E1E32',
+                       background:'#0D0D22',borderRight:'1px solid rgba(255,255,255,.07)',
                        transition:'left .25s cubic-bezier(0.4,0,0.2,1)',overflow:'hidden' }}>
           <SidebarContent onNavigate={() => setSidebarOpen(false)} />
         </div>
@@ -1116,7 +1315,7 @@ export default function Dashboard() {
       {/* Desktop static sidebar */}
       {!isMobile && (
         <div style={{ width:248,minWidth:248,flexShrink:0,height:'100vh',
-                       background:'#0F0F1A',borderRight:'1px solid #1E1E32',
+                       background:'#0D0D22',borderRight:'1px solid rgba(255,255,255,.07)',
                        display:'flex',flexDirection:'column' }}>
           <SidebarContent />
         </div>
@@ -1125,9 +1324,9 @@ export default function Dashboard() {
       {/* Main content area */}
       <div style={{ flex:1,display:'flex',flexDirection:'column',overflow:'hidden',minWidth:0 }}>
 
-        {/* Topbar */}
-        <div style={{ display:'flex',alignItems:'center',gap:10,padding:'12px 20px',
-                       background:'#0F0F1A',borderBottom:'1px solid #1E1E32',flexShrink:0 }}>
+        {/* Topbar — hidden for vault/teams on desktop (nothing to show there) */}
+        {(!['vault','teams'].includes(view) || isMobile) && <div style={{ display:'flex',alignItems:'center',gap:10,padding:'12px 20px',
+                       background:'#0D0D22',borderBottom:'1px solid rgba(255,255,255,.07)',flexShrink:0 }}>
           {isMobile && (
             <button onClick={() => setSidebarOpen(true)}
               style={{ background:'none',border:'none',cursor:'pointer',padding:'2px 6px 2px 0',
@@ -1141,31 +1340,31 @@ export default function Dashboard() {
             <>
               {view === 'files' && currentFolder !== null ? (
                 <div style={{ display:'flex',alignItems:'center',gap:6,fontSize:13,color:'#8888AA',flexWrap:'wrap',flex:1,minWidth:0 }}>
-                  <span style={{ cursor:'pointer',color:'#EEEEF8',fontWeight:500 }} onClick={() => navigateBreadcrumb(-1)}>Files</span>
+                  <span style={{ cursor:'pointer',color:'#EDEDFF',fontWeight:500 }} onClick={() => navigateBreadcrumb(-1)}>Files</span>
                   {folderPath.map((f,i) => (
                     <React.Fragment key={i}>
-                      <span style={{ color:'#55556A' }}>›</span>
+                      <span style={{ color:'#7A7AAA' }}>›</span>
                       <span style={{ cursor:'pointer',color:'#8888AA' }} onClick={() => navigateBreadcrumb(i)}>{f.label}</span>
                     </React.Fragment>
                   ))}
-                  <span style={{ color:'#55556A' }}>›</span>
-                  <span style={{ color:'#EEEEF8',fontWeight:600 }}>{currentFolderName}</span>
+                  <span style={{ color:'#7A7AAA' }}>›</span>
+                  <span style={{ color:'#EDEDFF',fontWeight:600 }}>{currentFolderName}</span>
                 </div>
               ) : (
                 <div style={{ flex:1,minWidth:0,position:'relative',display:'flex',alignItems:'center' }}>
                   <svg width={14} height={14} viewBox="0 0 16 16" fill="none" style={{ position:'absolute',left:12,pointerEvents:'none' }}>
-                    <circle cx="7" cy="7" r="4.5" stroke="#55556A" strokeWidth="1.4"/>
-                    <path d="M10.5 10.5L13 13" stroke="#55556A" strokeWidth="1.4" strokeLinecap="round"/>
+                    <circle cx="7" cy="7" r="4.5" stroke="#7A7AAA" strokeWidth="1.4"/>
+                    <path d="M10.5 10.5L13 13" stroke="#7A7AAA" strokeWidth="1.4" strokeLinecap="round"/>
                   </svg>
                   <input
-                    style={{ width:'100%',padding:'9px 14px 9px 34px',border:'1px solid #1E1E32',
+                    style={{ width:'100%',padding:'9px 14px 9px 34px',border:'1px solid rgba(255,255,255,.07)',
                                borderRadius:10,fontSize:13,outline:'none',
-                               background:'#11111E',color:'#EEEEF8',transition:'border-color 150ms' }}
+                               background:'#111130',color:'#EDEDFF',transition:'border-color 150ms' }}
                     placeholder={`Search ${view === 'shared' ? 'shared' : view === 'received' ? 'received' : view}…`}
                     value={search}
                     onChange={e => setSearch(e.target.value)}
-                    onFocus={e => e.target.style.borderColor='#5B5EF4'}
-                    onBlur={e => e.target.style.borderColor='#1E1E32'}
+                    onFocus={e => e.target.style.borderColor='#6366F1'}
+                    onBlur={e => e.target.style.borderColor='rgba(255,255,255,.07)'}
                   />
                 </div>
               )}
@@ -1178,21 +1377,21 @@ export default function Dashboard() {
             <div style={{ display:'flex',gap:8,flexShrink:0 }}>
               {!isMobile && (
                 <button onClick={() => setFolderModalOpen(true)}
-                  style={{ padding:'8px 14px',border:'1px solid #1E1E32',borderRadius:9,
+                  style={{ padding:'8px 14px',border:'1px solid rgba(255,255,255,.07)',borderRadius:9,
                              background:'transparent',fontSize:13,fontWeight:500,cursor:'pointer',
                              color:'#8888AA',whiteSpace:'nowrap',transition:'border-color 150ms,color 150ms' }}
-                  onMouseEnter={e=>{e.currentTarget.style.borderColor='#252540';e.currentTarget.style.color='#EEEEF8'}}
-                  onMouseLeave={e=>{e.currentTarget.style.borderColor='#1E1E32';e.currentTarget.style.color='#8888AA'}}>
+                  onMouseEnter={e=>{e.currentTarget.style.borderColor='rgba(255,255,255,.14)';e.currentTarget.style.color='#EDEDFF'}}
+                  onMouseLeave={e=>{e.currentTarget.style.borderColor='rgba(255,255,255,.07)';e.currentTarget.style.color='#8888AA'}}>
                   + Folder
                 </button>
               )}
               <button onClick={() => fileInputRef.current?.click()}
-                style={{ padding:'8px 18px',background:'#5B5EF4',color:'#fff',border:'none',
+                style={{ padding:'8px 18px',background:'#6366F1',color:'#fff',border:'none',
                            borderRadius:9,fontSize:13,fontWeight:600,cursor:'pointer',
                            whiteSpace:'nowrap',display:'flex',alignItems:'center',gap:7,
                            transition:'background 150ms' }}
                 onMouseEnter={e=>e.currentTarget.style.background='#4A4DDE'}
-                onMouseLeave={e=>e.currentTarget.style.background='#5B5EF4'}>
+                onMouseLeave={e=>e.currentTarget.style.background='#6366F1'}>
                 <IcoUpload />
                 Upload
               </button>
@@ -1200,12 +1399,12 @@ export default function Dashboard() {
                 onChange={e => { const f = Array.from(e.target.files); e.target.value=''; handleUpload(f) }} />
             </div>
           )}
-        </div>
+        </div>}
 
         {/* Files section sub-tabs */}
         {['files','shared','received'].includes(view) && (
-          <div style={{ display:'flex',padding:'0 12px',background:'#0F0F1A',
-                         borderBottom:'1px solid #1E1E32',flexShrink:0 }}>
+          <div style={{ display:'flex',padding:'0 12px',background:'#0D0D22',
+                         borderBottom:'1px solid rgba(255,255,255,.07)',flexShrink:0 }}>
             {[
               { key:'files',    label:'Your Files' },
               { key:'shared',   label:'Shared with You' },
@@ -1215,8 +1414,8 @@ export default function Dashboard() {
               return (
                 <button key={t.key} onClick={() => setView(t.key)}
                   style={{ padding:'9px 16px',fontSize:13,fontWeight:active?600:500,
-                             color:active?'#EEEEF8':'#8888AA',background:'none',border:'none',
-                             borderBottom:active?'2px solid #5B5EF4':'2px solid transparent',
+                             color:active?'#EDEDFF':'#8888AA',background:'none',border:'none',
+                             borderBottom:active?'2px solid #6366F1':'2px solid transparent',
                              cursor:'pointer',transition:'color 120ms,border-color 120ms',
                              marginBottom:'-1px' }}>
                   {t.label}
@@ -1228,26 +1427,74 @@ export default function Dashboard() {
 
         <UploadProgressPanel uploads={uploading} />
 
-        {/* Vault encryption progress */}
+        {/* Vault encryption progress — fixed bottom-right panel */}
         {vaultProgress && (
-          <div style={{ padding:'10px 20px',background:'rgba(59,31,140,0.4)',borderBottom:'1px solid rgba(91,94,244,0.3)',
-                         fontSize:12,display:'flex',alignItems:'center',gap:12,flexShrink:0 }}>
-            <div style={{ width:13,height:13,border:'2px solid rgba(91,94,244,0.3)',borderTopColor:'#5B5EF4',
-                           borderRadius:'50%',flexShrink:0,animation:'dd-spin 0.7s linear infinite' }} />
-            <span style={{ color:'#a5b4fc' }}>
-              Encrypting {vaultProgress.done} of {vaultProgress.total} files…
-            </span>
-            {vaultProgress.filename && (
-              <span style={{ color:'rgba(165,180,252,0.5)',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap',flex:1 }}>
-                {vaultProgress.filename}
+          <div style={{
+            position:'fixed', bottom:20, right:20, width:320,
+            background:'#0D0D22', border:'1px solid rgba(255,255,255,.07)',
+            borderRadius:12, boxShadow:'0 8px 32px rgba(0,0,0,.6)', zIndex:601,
+            overflow:'hidden', fontFamily:'inherit',
+          }}>
+            <div style={{
+              display:'flex', alignItems:'center', gap:10,
+              padding:'10px 14px', background:'#111130',
+              borderBottom: vaultProgress.filename ? '1px solid rgba(255,255,255,.07)' : 'none',
+            }}>
+              <div style={{
+                width:14, height:14, border:'2px solid rgba(99,102,241,.3)',
+                borderTopColor:'#6366F1', borderRadius:'50%', flexShrink:0,
+                animation:'dd-spin 0.7s linear infinite',
+              }} />
+              <span style={{ fontSize:13, fontWeight:600, color:'#EDEDFF', flex:1 }}>
+                Encrypting {vaultProgress.done} of {vaultProgress.total} file{vaultProgress.total !== 1 ? 's' : ''}…
               </span>
+            </div>
+            {vaultProgress.filename && (
+              <div style={{ padding:'6px 14px 8px' }}>
+                <div style={{
+                  fontSize:12, color:'#8888AA',
+                  overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap',
+                }}>
+                  {vaultProgress.filename}
+                </div>
+              </div>
             )}
+          </div>
+        )}
+
+        {/* Payment Recovery Banner */}
+        {recoveryStatus?.inRecovery && (
+          <div style={{
+            background:'rgba(220,38,38,0.1)', borderBottom:'1px solid rgba(220,38,38,0.25)',
+            padding:'10px 20px', display:'flex', alignItems:'center', gap:12, flexWrap:'wrap',
+            flexShrink:0,
+          }}>
+            <span style={{ fontSize:13, color:'#fca5a5', fontWeight:600 }}>⚠ Payment Required</span>
+            <span style={{ fontSize:12, color:'#f87171', flex:1 }}>
+              AutoPay could not be completed. Upload and write operations are paused.
+              {recoveryStatus.daysRemaining > 0
+                ? ` ${recoveryStatus.daysRemaining} day${recoveryStatus.daysRemaining !== 1 ? 's' : ''} remaining before permanent deletion.`
+                : ' Data deletion is imminent.'}
+            </span>
+            <button
+              onClick={() => setView('settings')}
+              style={{ padding:'5px 14px', background:'#DC2626', color:'#fff', border:'none',
+                         borderRadius:7, fontSize:12, fontWeight:700, cursor:'pointer', whiteSpace:'nowrap' }}>
+              Pay ₹{recoveryStatus.amountDue?.toFixed(2)} Now
+            </button>
+            <button
+              onClick={() => setView('settings')}
+              style={{ padding:'5px 14px', background:'transparent', color:'#fca5a5',
+                         border:'1px solid rgba(220,38,38,0.4)', borderRadius:7, fontSize:12,
+                         fontWeight:600, cursor:'pointer', whiteSpace:'nowrap' }}>
+              Change AutoPay
+            </button>
           </div>
         )}
 
         {/* Main scrollable content */}
         <UploadZone onDrop={handleUpload} active={view === 'files'}>
-          <div style={{ flex:1,overflow:'auto',padding:24 }}>
+          <div style={{ flex:1,overflow:'auto',padding:24,background:'#050510' }}>
 
             {/* Shared folder breadcrumb */}
             {view === 'received' && sharedFolderView && (
@@ -1256,12 +1503,12 @@ export default function Dashboard() {
                   onClick={() => { setSharedFolderView(null); setSharedFolderPath([]); setSharedFolderFolderId(null) }}>
                   Shared with me
                 </span>
-                <span style={{ color:'#55556A' }}>›</span>
+                <span style={{ color:'#7A7AAA' }}>›</span>
                 <span style={{ cursor:'pointer',color:'#8888AA' }}
                   onClick={() => sharedFolderBack(-1)}>{sharedFolderView.folderName}</span>
                 {sharedFolderPath.map((seg,i) => (
                   <React.Fragment key={i}>
-                    <span style={{ color:'#55556A' }}>›</span>
+                    <span style={{ color:'#7A7AAA' }}>›</span>
                     <span style={{ cursor:'pointer',color:'#8888AA' }} onClick={() => sharedFolderBack(i)}>{seg.name}</span>
                   </React.Fragment>
                 ))}
@@ -1274,10 +1521,10 @@ export default function Dashboard() {
 
             {/* Bulk selection action bar */}
             {totalSel > 0 && ['files','received','shared'].includes(view) && (
-              <div style={{ padding:'10px 16px',background:'#11111E',border:'1px solid #1E1E32',
+              <div style={{ padding:'10px 16px',background:'#111130',border:'1px solid rgba(255,255,255,.07)',
                              display:'flex',alignItems:'center',gap:14,fontSize:13,
                              borderRadius:10,marginBottom:14,flexWrap:'wrap' }}>
-                <span style={{ fontWeight:600,color:'#EEEEF8' }}>{totalSel} item{totalSel !== 1 ? 's' : ''} selected</span>
+                <span style={{ fontWeight:600,color:'#EDEDFF' }}>{totalSel} item{totalSel !== 1 ? 's' : ''} selected</span>
                 {view === 'files' && (
                   <button onClick={() => { setSelectedFileIds(new Set(filtered.map(f=>f.id))); setSelectedFolderIds(new Set(filteredFolders.map(f=>f.id))) }}
                     style={{ color:'#8888AA',background:'none',border:'none',cursor:'pointer',fontSize:12,padding:0 }}>
@@ -1287,14 +1534,15 @@ export default function Dashboard() {
                 <div style={{ flex:1 }} />
                 {selectedFileIds.size > 0 && (
                   <button onClick={bulkDownload}
-                    style={{ color:'#a5b4fc',background:'none',border:'none',cursor:'pointer',fontSize:12,fontWeight:500 }}>
+                    style={{ color:'#818CF8',background:'none',border:'none',cursor:'pointer',fontSize:12,fontWeight:500 }}>
                     ↓ Download
                   </button>
                 )}
                 {view === 'files' && totalSel > 0 && (
                   <button onClick={() => setShowMoveModal(true)}
-                    style={{ color:'#8888AA',background:'none',border:'none',cursor:'pointer',fontSize:12,fontWeight:500 }}>
-                    → Move
+                    style={{ color:'#8888AA',background:'none',border:'none',cursor:'pointer',fontSize:12,fontWeight:500,display:'flex',alignItems:'center',gap:5 }}>
+                    <svg width={13} height={13} viewBox="0 0 14 14" fill="none"><path d="M1 7h10M8 4l3 3-3 3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                    Move
                   </button>
                 )}
                 {view === 'files' && totalSel > 0 && (
@@ -1303,10 +1551,21 @@ export default function Dashboard() {
                     ⧉ Copy to
                   </button>
                 )}
+                {view === 'files' && totalSel > 0 && (
+                  <button onClick={() => {
+                    const fileItems   = files.filter(f => selectedFileIds.has(f.id))
+                    const folderItems = filteredFolders.filter(f => selectedFolderIds.has(f.id)).map(f => ({ id: f.id, filename: f.name }))
+                    setBulkShareFiles([...fileItems, ...folderItems])
+                  }}
+                    style={{ color:'#8888AA',background:'none',border:'none',cursor:'pointer',fontSize:12,fontWeight:500,display:'flex',alignItems:'center',gap:5 }}>
+                    <svg width={12} height={12} viewBox="0 0 14 14" fill="none"><circle cx="10.5" cy="3" r="1.5" stroke="currentColor" strokeWidth="1.3"/><circle cx="3.5" cy="7" r="1.5" stroke="currentColor" strokeWidth="1.3"/><circle cx="10.5" cy="11" r="1.5" stroke="currentColor" strokeWidth="1.3"/><path d="M4.9 6.2l4.2-2M4.9 7.8l4.2 2" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round"/></svg>
+                    Share
+                  </button>
+                )}
                 {view === 'files' && (
                   <button onClick={bulkDelete}
                     style={{ color:'#E24B4A',background:'none',border:'none',cursor:'pointer',fontSize:12,fontWeight:500 }}>
-                    Delete {totalSel}
+                    Delete
                   </button>
                 )}
                 <button onClick={clearSelection}
@@ -1360,7 +1619,8 @@ export default function Dashboard() {
           onClose={() => setRenameTarget(null)}
         />
       )}
-      {shareTarget   && <ShareModal file={shareTarget} onClose={() => { setShareTarget(null); load() }} />}
+      {shareTarget   && <ShareModal files={[shareTarget]} onClose={() => { setShareTarget(null); load() }} />}
+      {bulkShareFiles && <ShareModal files={bulkShareFiles} onClose={() => { setBulkShareFiles(null); load() }} />}
       {preview       && <FilePreview file={preview} onClose={() => setPreview(null)} canDownload={view === 'received' ? !!preview.can_download : true} />}
       {versionFile   && <VersionHistory
         file={versionFile}
@@ -1390,6 +1650,13 @@ export default function Dashboard() {
           name={conflictTarget.name}
           existing={conflictTarget.existing}
           onDecide={resolveConflict}
+        />
+      )}
+      {folderConflictTarget && (
+        <FolderConflictModal
+          name={folderConflictTarget.name}
+          itemType={folderConflictTarget.itemType || 'folder'}
+          onDecide={resolveFolderConflict}
         />
       )}
       {pinPending && (
@@ -1427,41 +1694,64 @@ export default function Dashboard() {
           onClose={() => setShowCopyModal(false)}
         />
       )}
+      {largeFilesWarning && (
+        <LargeFilesWarningModal
+          names={largeFilesWarning.names}
+          onProceed={() => { const fn = largeFilesWarning.proceed; setLargeFilesWarning(null); fn() }}
+          onClose={() => setLargeFilesWarning(null)}
+        />
+      )}
+      {limitExceededBlock && !showLimitUpgrade && (
+        <LimitExceededModal
+          capacityGb={limitExceededBlock.capacityGb}
+          limitRs={limitExceededBlock.limitRs}
+          filename={limitExceededBlock.fileToUpload?.name}
+          onIncrease={() => setShowLimitUpgrade(true)}
+          onClose={() => { setLimitExceededBlock(null); setShowLimitUpgrade(false) }}
+        />
+      )}
+      {showLimitUpgrade && limitExceededBlock && (
+        <LimitUpgradeModal
+          currentLimit={limitExceededBlock.limitRs}
+          onSuccess={() => retryBlockedUpload(limitExceededBlock)}
+          onClose={() => { setShowLimitUpgrade(false); setLimitExceededBlock(null) }}
+        />
+      )}
     </div>
   )
 }
 
 // ── SVG Nav Icons ──────────────────────────────────────────────────────────
-function IcoFiles()    { return <svg width={15} height={15} viewBox="0 0 16 16" fill="none"><path d="M2 4a1 1 0 0 1 1-1h3.5l1.5 1.5H13a1 1 0 0 1 1 1V12a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V4z" stroke="currentColor" strokeWidth="1.3" strokeLinejoin="round"/></svg> }
-function IcoVault()    { return <svg width={15} height={15} viewBox="0 0 16 16" fill="none"><rect x="2" y="7" width="12" height="8" rx="1.5" stroke="currentColor" strokeWidth="1.3"/><path d="M5 7V5a3 3 0 0 1 6 0v2" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round"/><circle cx="8" cy="11" r="1.5" fill="currentColor"/></svg> }
-function IcoTeams()    { return <svg width={15} height={15} viewBox="0 0 16 16" fill="none"><circle cx="5.5" cy="5" r="2" stroke="currentColor" strokeWidth="1.3"/><circle cx="10.5" cy="5" r="2" stroke="currentColor" strokeWidth="1.3"/><path d="M1 14c0-2.5 2-3.5 4.5-3.5m9 0c0-2.5-2-3.5-4.5-3.5" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round"/></svg> }
+function IcoFiles()    { return <svg width={20} height={20} viewBox="0 0 24 24" fill="none"><path d="M3 8a2 2 0 012-2h5l1.5 1.5H19a2 2 0 012 2v8.5a2 2 0 01-2 2H5a2 2 0 01-2-2V8z" stroke="currentColor" strokeWidth="1.5" fill="currentColor" fillOpacity=".1" strokeLinejoin="round"/></svg> }
+function IcoVault()    { return <svg width={20} height={20} viewBox="0 0 24 24" fill="none"><rect x="5" y="12" width="14" height="9" rx="2.5" stroke="currentColor" strokeWidth="1.5" fill="currentColor" fillOpacity=".1"/><path d="M8 12V9A4 4 0 0 1 16 9V12" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/><circle cx="12" cy="16.5" r="1.8" fill="currentColor"/></svg> }
+function IcoTeams()    { return <svg width={20} height={20} viewBox="0 0 24 24" fill="none"><circle cx="9" cy="7" r="3" stroke="currentColor" strokeWidth="1.4" fill="currentColor" fillOpacity=".12"/><path d="M2 21c0-4 3-6 7-6s7 2 7 6" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round"/><circle cx="16.5" cy="6.5" r="2.5" stroke="currentColor" strokeWidth="1.3" fill="currentColor" fillOpacity=".12"/><path d="M17 15.5c3 .5 5.5 2.5 5.5 5.5" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round"/></svg> }
 function IcoShareOut() { return <svg width={15} height={15} viewBox="0 0 16 16" fill="none"><circle cx="12" cy="4" r="1.5" stroke="currentColor" strokeWidth="1.3"/><circle cx="4" cy="8" r="1.5" stroke="currentColor" strokeWidth="1.3"/><circle cx="12" cy="12" r="1.5" stroke="currentColor" strokeWidth="1.3"/><path d="M5.5 7l5-2M5.5 9l5 2" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round"/></svg> }
 function IcoShareIn()  { return <svg width={15} height={15} viewBox="0 0 16 16" fill="none"><path d="M13 3H3a1 1 0 0 0-1 1v8a1 1 0 0 0 1 1h10a1 1 0 0 0 1-1V4a1 1 0 0 0-1-1z" stroke="currentColor" strokeWidth="1.3" strokeLinejoin="round"/><path d="M8 6v4M6 8.5l2 2 2-2" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round"/></svg> }
 function IcoTrash()    { return <svg width={15} height={15} viewBox="0 0 16 16" fill="none"><path d="M3 5h10M6 5V4a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1v1" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round"/><path d="M4 5l.6 8a1 1 0 0 0 1 .9h4.8a1 1 0 0 0 1-.9L12 5" stroke="currentColor" strokeWidth="1.3" strokeLinejoin="round"/><path d="M6.5 8v3M9.5 8v3" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round"/></svg> }
-function IcoGear()     { return <svg width={15} height={15} viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="2" stroke="currentColor" strokeWidth="1.3"/><path d="M8 2v1.5M8 12.5V14M2 8h1.5M12.5 8H14M3.64 3.64l1.06 1.06M11.3 11.3l1.06 1.06M3.64 12.36l1.06-1.06M11.3 4.7l1.06-1.06" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round"/></svg> }
+function IcoGear()     { return <svg width={15} height={15} viewBox="0 0 24 24" fill="none"><path d="M12 15a3 3 0 100-6 3 3 0 000 6z" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"/></svg> }
 function IcoUpload()   { return <svg width={13} height={13} viewBox="0 0 14 14" fill="none"><path d="M7 2v8M4 5l3-3 3 3M2 12h10" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg> }
 function IcoHamburger(){ return <svg width={18} height={18} viewBox="0 0 18 18" fill="none"><path d="M3 5h12M3 9h12M3 13h12" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/></svg> }
 
 // ── Dark overlay backdrop ──────────────────────────────────────────────────
 const DarkOverlay = ({ onClick, blur = false }) => (
-  <div style={{ position:'fixed',inset:0,background:'rgba(7,7,13,0.85)',zIndex:200,
+  <div style={{ position:'fixed',inset:0,background:'rgba(8,8,26,0.85)',zIndex:200,
                  backdropFilter:blur?'blur(8px)':'none' }}
     onClick={onClick} />
 )
 
 // ── Shared modal card style ────────────────────────────────────────────────
 const MC = {
-  bg:     '#0F0F1A',
-  border: '1px solid #1E1E32',
+  bg:     '#0D0D22',
+  border: '1px solid rgba(255,255,255,.07)',
   radius: 16,
   pad:    28,
-  textP:  '#EEEEF8',
+  textP:  '#EDEDFF',
   textS:  '#8888AA',
-  input:  { width:'100%',padding:'10px 14px',border:'1px solid #1E1E32',borderRadius:10,
-             fontSize:14,outline:'none',background:'#161625',color:'#EEEEF8',boxSizing:'border-box' },
-  btnP:   { padding:'10px 20px',background:'#5B5EF4',color:'#fff',border:'none',
+  input:  { width:'100%',padding:'10px 14px',border:'1px solid rgba(255,255,255,.07)',borderRadius:10,
+             fontSize:14,outline:'none',background:'#161625',color:'#EDEDFF',boxSizing:'border-box' },
+  btnP:   { padding:'10px 20px',background:'#6366F1',color:'#fff',border:'none',
              borderRadius:10,fontWeight:600,fontSize:14,cursor:'pointer' },
-  btnS:   { padding:'10px 20px',background:'#161625',color:'#8888AA',border:'1px solid #1E1E32',
+  btnS:   { padding:'10px 20px',background:'#161625',color:'#8888AA',border:'1px solid rgba(255,255,255,.07)',
              borderRadius:10,fontWeight:600,fontSize:14,cursor:'pointer' },
   btnD:   { padding:'10px 20px',background:'rgba(226,75,74,0.1)',color:'#E24B4A',
              border:'1px solid rgba(226,75,74,0.25)',borderRadius:10,fontWeight:600,fontSize:14,cursor:'pointer' },
@@ -1469,15 +1759,18 @@ const MC = {
 
 function DeleteConfirmModal({ file, onDelete, onClose }) {
   const name = file.filename || file.name || 'this item'
+  const isFolder = file.item_type === 'folder'
   return (
     <>
       <DarkOverlay onClick={onClose} blur />
       <div style={{ position:'fixed',inset:0,zIndex:201,display:'flex',alignItems:'center',justifyContent:'center',padding:20 }}>
         <div style={{ background:MC.bg,border:MC.border,borderRadius:MC.radius,padding:MC.pad,
                        width:'100%',maxWidth:400,boxShadow:'0 24px 64px rgba(0,0,0,0.6)' }}>
-          <h3 style={{ fontSize:16,fontWeight:700,color:MC.textP,marginBottom:8 }}>Delete "{name}"?</h3>
+          <h3 style={{ fontSize:16,fontWeight:700,color:MC.textP,marginBottom:8 }}>Delete permanently?</h3>
           <p style={{ fontSize:13,color:MC.textS,marginBottom:20,lineHeight:1.5 }}>
-            This cannot be undone.
+            {isFolder
+              ? `"${name}" and all its contents will be permanently deleted. This cannot be undone.`
+              : `"${name}" will be permanently deleted. This cannot be undone.`}
           </p>
           <div style={{ display:'flex',gap:10 }}>
             <button onClick={onDelete} style={MC.btnD}>Delete</button>
@@ -1497,10 +1790,10 @@ function BulkDeleteConfirmModal({ count, onDelete, onClose }) {
         <div style={{ background:MC.bg,border:MC.border,borderRadius:MC.radius,padding:MC.pad,
                        width:'100%',maxWidth:400,boxShadow:'0 24px 64px rgba(0,0,0,0.6)' }}>
           <h3 style={{ fontSize:16,fontWeight:700,color:MC.textP,marginBottom:8 }}>
-            Delete {count} item{count !== 1 ? 's' : ''}?
+            Delete permanently?
           </h3>
           <p style={{ fontSize:13,color:MC.textS,marginBottom:20,lineHeight:1.5 }}>
-            This cannot be undone.
+            These files/folders will be permanently deleted. This cannot be undone.
           </p>
           <div style={{ display:'flex',gap:10 }}>
             <button onClick={onDelete} style={MC.btnD}>Delete</button>
@@ -1509,6 +1802,72 @@ function BulkDeleteConfirmModal({ count, onDelete, onClose }) {
         </div>
       </div>
     </>
+  )
+}
+
+function LargeFilesWarningModal({ names, onProceed, onClose }) {
+  return (
+    <>
+      <DarkOverlay onClick={onClose} blur />
+      <div style={{ position:'fixed',inset:0,zIndex:201,display:'flex',alignItems:'center',justifyContent:'center',padding:20 }}>
+        <div style={{ background:MC.bg,border:MC.border,borderRadius:MC.radius,padding:MC.pad,
+                       width:'100%',maxWidth:460,boxShadow:'0 24px 64px rgba(0,0,0,0.6)' }}>
+          <h3 style={{ fontSize:16,fontWeight:700,color:MC.textP,marginBottom:8 }}>Large file detected</h3>
+          <p style={{ fontSize:13,color:MC.textS,marginBottom:8,lineHeight:1.6 }}>
+            Re-encrypting large files can take a long time. We recommend downloading
+            the file and re-uploading it directly in the destination instead.
+          </p>
+          <ul style={{ margin:'0 0 16px 0',padding:'0 0 0 16px',fontSize:12,color:'#8888AA',lineHeight:1.8 }}>
+            {names.map(n => <li key={n}>{n}</li>)}
+          </ul>
+          <div style={{ display:'flex',gap:10 }}>
+            <button onClick={onClose} style={MC.btnP}>Download &amp; re-upload instead</button>
+            <button onClick={onProceed} style={MC.btnS}>Move anyway</button>
+          </div>
+        </div>
+      </div>
+    </>
+  )
+}
+
+function LimitExceededModal({ capacityGb, limitRs, filename, onIncrease, onClose }) {
+  const overlay = {
+    position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)',
+    display: 'flex', alignItems: 'center', justifyContent: 'center',
+    zIndex: 8900, padding: 16,
+  }
+  const card = {
+    background: '#13132A', border: '1px solid rgba(255,255,255,.1)',
+    borderRadius: 16, padding: 28, width: '100%', maxWidth: 400,
+    boxShadow: '0 24px 64px rgba(0,0,0,0.6)',
+  }
+  return (
+    <div style={overlay} onClick={e => { if (e.target === e.currentTarget) onClose() }}>
+      <div style={card}>
+        <div style={{ fontSize: 32, marginBottom: 12, textAlign: 'center' }}>📦</div>
+        <div style={{ fontSize: 17, fontWeight: 700, color: '#EDEDFF', marginBottom: 8, textAlign: 'center' }}>
+          Storage Capacity Reached
+        </div>
+        <div style={{ fontSize: 13, color: '#8888AA', lineHeight: 1.6, marginBottom: 20, textAlign: 'center' }}>
+          {filename ? <><strong style={{ color: '#EDEDFF' }}>{filename}</strong><br /></> : null}
+          Your {capacityGb > 0 ? `${capacityGb.toFixed(1)} GB` : ''} storage capacity is full.
+          Increase your monthly limit (currently ₹{limitRs}/mo) to upload more.
+        </div>
+        <div style={{ display: 'flex', gap: 10 }}>
+          <button onClick={onClose}
+            style={{ flex: 1, padding: '10px 0', background: 'transparent',
+                     border: '1px solid rgba(255,255,255,.08)', borderRadius: 10,
+                     color: '#8888AA', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
+            Cancel
+          </button>
+          <button onClick={onIncrease}
+            style={{ flex: 2, padding: '10px 0', background: '#6366F1', borderRadius: 10,
+                     color: '#fff', fontSize: 13, fontWeight: 700, border: 'none', cursor: 'pointer' }}>
+            Increase Limit
+          </button>
+        </div>
+      </div>
+    </div>
   )
 }
 
@@ -1559,7 +1918,7 @@ function FileConflictModal({ name, existing, onDecide }) {
     return `${(b/(1024*1024)).toFixed(1)} MB`
   }
   const optBtn = (accent) => ({
-    width:'100%',padding:'12px 16px',border:`1px solid ${accent||'#1E1E32'}`,borderRadius:10,
+    width:'100%',padding:'12px 16px',border:`1px solid ${accent||'rgba(255,255,255,.07)'}`,borderRadius:10,
     fontWeight:600,fontSize:13,cursor:'pointer',textAlign:'left',
     background:'#161625',color:accent||MC.textP,
     display:'flex',flexDirection:'column',gap:3,transition:'background 150ms,border-color 150ms',
@@ -1595,7 +1954,7 @@ function FileConflictModal({ name, existing, onDecide }) {
           </p>
           <p style={{ fontSize:13,color:MC.textS,marginBottom:20 }}>What would you like to do?</p>
           <div style={{ display:'flex',flexDirection:'column',gap:8 }}>
-            <button style={optBtn('#5B5EF4')} onClick={()=>onDecide('version')}>
+            <button style={optBtn('#6366F1')} onClick={()=>onDecide('version')}>
               <span>Create new version</span>
               <span style={{ fontSize:11,fontWeight:400,color:MC.textS }}>Keep old file as v1 — new upload becomes current</span>
             </button>
@@ -1610,6 +1969,69 @@ function FileConflictModal({ name, existing, onDecide }) {
             <button onClick={()=>onDecide('cancel')}
               style={{ background:'none',border:'none',fontSize:13,color:MC.textS,cursor:'pointer',padding:'6px 0',fontWeight:500,marginTop:4 }}>
               Cancel
+            </button>
+          </div>
+        </div>
+      </div>
+    </>
+  )
+}
+
+function FolderConflictModal({ name, itemType = 'folder', onDecide }) {
+  const [renameMode, setRenameMode] = React.useState(false)
+  const label = itemType === 'file' ? 'file' : 'folder'
+  const [customName, setCustomName] = React.useState(() => {
+    if (itemType === 'file') {
+      const dotIdx = name.lastIndexOf('.')
+      const base = dotIdx >= 0 ? name.slice(0, dotIdx) : name
+      const ext  = dotIdx >= 0 ? name.slice(dotIdx) : ''
+      return `${base} (2)${ext}`
+    }
+    return `${name} (2)`
+  })
+  const optBtn = (accent) => ({
+    width:'100%', padding:'12px 16px', border:`1px solid ${accent||'rgba(255,255,255,.07)'}`, borderRadius:10,
+    fontWeight:600, fontSize:13, cursor:'pointer', textAlign:'left',
+    background:'#161625', color:accent||MC.textP,
+    display:'flex', flexDirection:'column', gap:3, transition:'background 150ms,border-color 150ms',
+  })
+  if (renameMode) return (
+    <>
+      <DarkOverlay onClick={() => setRenameMode(false)} blur />
+      <div style={{ position:'fixed',inset:0,zIndex:301,display:'flex',alignItems:'center',justifyContent:'center',padding:20 }}>
+        <div style={{ background:MC.bg,border:MC.border,borderRadius:MC.radius,padding:MC.pad,width:'100%',maxWidth:420 }}>
+          <h3 style={{ fontSize:16,fontWeight:700,color:MC.textP,marginBottom:8 }}>Rename {label}</h3>
+          <p style={{ fontSize:13,color:MC.textS,marginBottom:16 }}>Enter a new name for the {label}:</p>
+          <input autoFocus value={customName} onChange={e=>setCustomName(e.target.value)}
+            onKeyDown={e=>{ if(e.key==='Enter'&&customName.trim()) onDecide({action:'rename',customName:customName.trim()}); if(e.key==='Escape') setRenameMode(false) }}
+            style={{ ...MC.input,marginBottom:16 }} />
+          <div style={{ display:'flex',gap:10 }}>
+            <button onClick={()=>{ if(customName.trim()) onDecide({action:'rename',customName:customName.trim()}) }}
+              style={{ ...MC.btnP,flex:1 }}>Confirm</button>
+            <button onClick={()=>setRenameMode(false)} style={{ ...MC.btnS,flex:1 }}>Back</button>
+          </div>
+        </div>
+      </div>
+    </>
+  )
+  return (
+    <>
+      <DarkOverlay blur />
+      <div style={{ position:'fixed',inset:0,zIndex:301,display:'flex',alignItems:'center',justifyContent:'center',padding:20 }}>
+        <div style={{ background:MC.bg,border:MC.border,borderRadius:MC.radius,padding:MC.pad,width:'100%',maxWidth:440 }}>
+          <h3 style={{ fontSize:16,fontWeight:700,color:MC.textP,marginBottom:6 }}>{label.charAt(0).toUpperCase()+label.slice(1)} already exists</h3>
+          <p style={{ fontSize:13,color:MC.textS,marginBottom:20,lineHeight:1.5 }}>
+            A {label} named <strong style={{ color:MC.textP }}>"{name}"</strong> already exists in the destination.
+            What would you like to do?
+          </p>
+          <div style={{ display:'flex',flexDirection:'column',gap:8 }}>
+            <button style={optBtn()} onClick={()=>setRenameMode(true)}>
+              <span>Rename and move</span>
+              <span style={{ fontSize:11,fontWeight:400,color:MC.textS }}>Choose a new name for this {label}</span>
+            </button>
+            <button onClick={()=>onDecide({action:'cancel'})}
+              style={{ background:'none',border:'none',fontSize:13,color:MC.textS,cursor:'pointer',padding:'6px 0',fontWeight:500,marginTop:4 }}>
+              Skip this {label}
             </button>
           </div>
         </div>
@@ -1654,9 +2076,9 @@ function EditShareModal({ share, onSave, onClose }) {
   }
   const Toggle = ({ label, val, set }) => (
     <label style={{ display:'flex',alignItems:'center',gap:12,padding:'11px 0',cursor:'pointer',
-                     borderBottom:'1px solid #1E1E32' }}>
+                     borderBottom:'1px solid rgba(255,255,255,.07)' }}>
       <input type="checkbox" checked={val} onChange={e=>set(e.target.checked)}
-        style={{ width:16,height:16,cursor:'pointer',accentColor:'#5B5EF4' }} />
+        style={{ width:16,height:16,cursor:'pointer',accentColor:'#6366F1' }} />
       <span style={{ fontSize:14,color:MC.textP }}>{label}</span>
     </label>
   )
@@ -1667,7 +2089,7 @@ function EditShareModal({ share, onSave, onClose }) {
         <div style={{ background:MC.bg,border:MC.border,borderRadius:MC.radius,padding:MC.pad,width:'100%',maxWidth:380 }}>
           <div style={{ display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:8 }}>
             <h3 style={{ fontSize:16,fontWeight:700,color:MC.textP }}>Share permissions</h3>
-            <button onClick={onClose} style={{ background:'#161625',border:'1px solid #1E1E32',borderRadius:8,
+            <button onClick={onClose} style={{ background:'#161625',border:'1px solid rgba(255,255,255,.07)',borderRadius:8,
                                                  width:32,height:32,fontSize:18,cursor:'pointer',color:MC.textS,
                                                  display:'flex',alignItems:'center',justifyContent:'center' }}>×</button>
           </div>
@@ -1679,7 +2101,7 @@ function EditShareModal({ share, onSave, onClose }) {
           <Toggle label="Can view" val={canView} set={setCanView} />
           <Toggle label="Can download" val={canDownload} set={setCanDownload} />
           <Toggle label="Can save to their storage" val={canSave} set={setCanSave} />
-          <div style={{ padding:'12px 0',borderBottom:'1px solid #1E1E32' }}>
+          <div style={{ padding:'12px 0',borderBottom:'1px solid rgba(255,255,255,.07)' }}>
             <label style={{ fontSize:13,fontWeight:600,display:'block',marginBottom:8,color:MC.textP }}>Expiry</label>
             <input type="datetime-local" value={expiresAt} onChange={e=>setExpiresAt(e.target.value)}
               style={{ ...MC.input,fontSize:13 }} />

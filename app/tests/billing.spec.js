@@ -173,7 +173,7 @@ test.describe('Billing & Storage', () => {
   // ── No vendor names in billing responses ─────────────────────────────────────
 
   test('Billing API responses contain no vendor names', async ({ page }) => {
-    const violations: string[] = []
+    const violations = []
 
     page.on('response', async (resp) => {
       const ct = resp.headers()['content-type'] ?? ''

@@ -108,28 +108,28 @@ export default function FileMoveModal({ initialSection = 'files', selectedCount,
   return (
     <div style={{ position:'fixed',inset:0,background:'rgba(7,7,13,.87)',zIndex:300,display:'flex',alignItems:'center',justifyContent:'center' }}
       onClick={onClose}>
-      <div style={{ background:'#0F0F1A',border:'1px solid #1E1E32',borderRadius:16,width:'100%',maxWidth:480,
+      <div style={{ background:'#0D0D22',border:'1px solid rgba(255,255,255,.07)',borderRadius:16,width:'100%',maxWidth:480,
                      boxShadow:'0 20px 60px rgba(0,0,0,.7)',overflow:'hidden',margin:16 }}
         onClick={e => e.stopPropagation()}>
 
         {/* Header */}
-        <div style={{ display:'flex',justifyContent:'space-between',alignItems:'center',padding:'18px 24px',borderBottom:'1px solid #1E1E32' }}>
-          <span style={{ fontWeight:700,fontSize:15,color:'#EEEEF8' }}>
+        <div style={{ display:'flex',justifyContent:'space-between',alignItems:'center',padding:'18px 24px',borderBottom:'1px solid rgba(255,255,255,.07)' }}>
+          <span style={{ fontWeight:700,fontSize:15,color:'#EDEDFF' }}>
             Move {selectedCount} item{selectedCount !== 1 ? 's' : ''}
           </span>
           <button onClick={onClose}
-            style={{ background:'none',border:'none',cursor:'pointer',fontSize:22,color:'#55556A',lineHeight:1,padding:'0 2px' }}>
+            style={{ background:'none',border:'none',cursor:'pointer',fontSize:22,color:'#7A7AAA',lineHeight:1,padding:'0 2px' }}>
             ×
           </button>
         </div>
 
         {/* Section tabs */}
-        <div style={{ display:'flex',borderBottom:'1px solid #1E1E32' }}>
+        <div style={{ display:'flex',borderBottom:'1px solid rgba(255,255,255,.07)' }}>
           {[['files','📁 Files'],['vault','🔒 Vault'],['teams','👥 Secured Sharing']].map(([s, label]) => (
             <button key={s} onClick={() => setSection(s)}
               style={{ flex:1,padding:'10px 6px',background:'none',border:'none',cursor:'pointer',fontSize:12,fontWeight:600,
-                         color:section===s?'#5B5EF4':'#8888AA',
-                         borderBottom:section===s?'2px solid #5B5EF4':'2px solid transparent',
+                         color:section===s?'#6366F1':'#8888AA',
+                         borderBottom:section===s?'2px solid #6366F1':'2px solid transparent',
                          transition:'color .12s' }}>
               {label}
             </button>
@@ -138,19 +138,19 @@ export default function FileMoveModal({ initialSection = 'files', selectedCount,
 
         {/* Breadcrumb */}
         <div style={{ padding:'9px 24px',display:'flex',alignItems:'center',gap:4,flexWrap:'wrap',fontSize:13,
-                       borderBottom:'1px solid #1E1E32',minHeight:40 }}>
+                       borderBottom:'1px solid rgba(255,255,255,.07)',minHeight:40 }}>
           <button onClick={() => { navigateTo(-1); if (section === 'teams') setSelectedTeam(null) }}
             style={{ background:'none',border:'none',cursor:'pointer',padding:'2px 4px',fontSize:13,
-                       color:(folderStack.length===0&&!selectedTeam)?'#EEEEF8':'#8888AA',
+                       color:(folderStack.length===0&&!selectedTeam)?'#EDEDFF':'#8888AA',
                        fontWeight:(folderStack.length===0&&!selectedTeam)?600:400 }}>
             {sectionLabel}
           </button>
           {folderStack.map((f, i) => (
             <React.Fragment key={f.id}>
-              <span style={{ color:'#55556A' }}>›</span>
+              <span style={{ color:'#7A7AAA' }}>›</span>
               <button onClick={() => navigateTo(i)}
                 style={{ background:'none',border:'none',cursor:'pointer',padding:'2px 4px',fontSize:13,
-                           color:i===folderStack.length-1?'#EEEEF8':'#8888AA',
+                           color:i===folderStack.length-1?'#EDEDFF':'#8888AA',
                            fontWeight:i===folderStack.length-1?600:400 }}>
                 {f.name}
               </button>
@@ -163,19 +163,19 @@ export default function FileMoveModal({ initialSection = 'files', selectedCount,
           {/* Vault locked state */}
           {vaultLocked ? (
             <div style={{ display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',
-                           height:'100%',color:'#55556A',fontSize:13,textAlign:'center',padding:20,gap:8 }}>
+                           height:'100%',color:'#7A7AAA',fontSize:13,textAlign:'center',padding:20,gap:8 }}>
               <span style={{ fontSize:22 }}>🔒</span>
               Vault is locked — unlock it first to move files here
             </div>
           ) : section === 'teams' && !selectedTeam ? (
             /* Team picker */
             teams === null ? (
-              <div style={{ display:'flex',alignItems:'center',justifyContent:'center',height:'100%',color:'#55556A',fontSize:13 }}>
+              <div style={{ display:'flex',alignItems:'center',justifyContent:'center',height:'100%',color:'#7A7AAA',fontSize:13 }}>
                 Loading…
               </div>
             ) : teams.length === 0 ? (
               <div style={{ display:'flex',alignItems:'center',justifyContent:'center',height:'100%',
-                             color:'#55556A',fontSize:13,textAlign:'center',padding:20 }}>
+                             color:'#7A7AAA',fontSize:13,textAlign:'center',padding:20 }}>
                 No workspaces — create one in Secured Sharing first
               </div>
             ) : (
@@ -184,30 +184,30 @@ export default function FileMoveModal({ initialSection = 'files', selectedCount,
                 return (
                   <button key={t.id} onClick={() => selectTeam(t)}
                     style={{ width:'100%',display:'flex',alignItems:'center',gap:10,padding:'11px 24px',
-                               background:'none',border:'none',cursor:'pointer',textAlign:'left',color:'#EEEEF8',fontSize:13 }}
+                               background:'none',border:'none',cursor:'pointer',textAlign:'left',color:'#EDEDFF',fontSize:13 }}
                     onMouseEnter={e => e.currentTarget.style.background='rgba(255,255,255,.05)'}
                     onMouseLeave={e => e.currentTarget.style.background='transparent'}>
                     <span style={{ fontSize:14 }}>👥</span>
                     <span style={{ flex:1 }}>{t.name}</span>
-                    {!unlocked && <span style={{ fontSize:11,color:'#55556A' }}>locked</span>}
-                    <span style={{ color:'#55556A',fontSize:11 }}>›</span>
+                    {!unlocked && <span style={{ fontSize:11,color:'#7A7AAA' }}>locked</span>}
+                    <span style={{ color:'#7A7AAA',fontSize:11 }}>›</span>
                   </button>
                 )
               })
             )
           ) : teamLocked ? (
             <div style={{ display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',
-                           height:'100%',color:'#55556A',fontSize:13,textAlign:'center',padding:20,gap:8 }}>
+                           height:'100%',color:'#7A7AAA',fontSize:13,textAlign:'center',padding:20,gap:8 }}>
               <span style={{ fontSize:22 }}>🔒</span>
               Workspace is locked — open it in Secured Sharing first
             </div>
           ) : loading ? (
-            <div style={{ display:'flex',alignItems:'center',justifyContent:'center',height:'100%',color:'#55556A',fontSize:13 }}>
+            <div style={{ display:'flex',alignItems:'center',justifyContent:'center',height:'100%',color:'#7A7AAA',fontSize:13 }}>
               Loading…
             </div>
           ) : folders.length === 0 ? (
             <div style={{ display:'flex',alignItems:'center',justifyContent:'center',height:'100%',
-                           color:'#55556A',fontSize:13,textAlign:'center',padding:20 }}>
+                           color:'#7A7AAA',fontSize:13,textAlign:'center',padding:20 }}>
               No subfolders — move here or create one below
             </div>
           ) : (
@@ -215,19 +215,19 @@ export default function FileMoveModal({ initialSection = 'files', selectedCount,
               <button key={f.id}
                 onClick={() => setFolderStack(prev => [...prev, { id: f.id, name: f.name }])}
                 style={{ width:'100%',display:'flex',alignItems:'center',gap:10,padding:'11px 24px',
-                           background:'none',border:'none',cursor:'pointer',textAlign:'left',color:'#EEEEF8',fontSize:13 }}
+                           background:'none',border:'none',cursor:'pointer',textAlign:'left',color:'#EDEDFF',fontSize:13 }}
                 onMouseEnter={e => e.currentTarget.style.background='rgba(255,255,255,.05)'}
                 onMouseLeave={e => e.currentTarget.style.background='transparent'}>
                 <span style={{ fontSize:14 }}>📁</span>
                 <span style={{ flex:1 }}>{f.name}</span>
-                <span style={{ color:'#55556A',fontSize:11 }}>›</span>
+                <span style={{ color:'#7A7AAA',fontSize:11 }}>›</span>
               </button>
             ))
           )}
         </div>
 
         {/* New folder row */}
-        <div style={{ padding:'10px 24px',borderTop:'1px solid #1E1E32',borderBottom:'1px solid #1E1E32' }}>
+        <div style={{ padding:'10px 24px',borderTop:'1px solid rgba(255,255,255,.07)',borderBottom:'1px solid rgba(255,255,255,.07)' }}>
           {creatingFolder ? (
             <div style={{ display:'flex',gap:8 }}>
               <input value={newFolderName} onChange={e => setNewFolderName(e.target.value)}
@@ -236,20 +236,20 @@ export default function FileMoveModal({ initialSection = 'files', selectedCount,
                   if (e.key === 'Escape') { setCreatingFolder(false); setNewFolderName('') }
                 }}
                 placeholder="New folder name" autoFocus
-                style={{ flex:1,padding:'7px 12px',background:'#161625',border:'1px solid #1E1E32',borderRadius:8,
-                           color:'#EEEEF8',fontSize:13,outline:'none' }} />
+                style={{ flex:1,padding:'7px 12px',background:'#161625',border:'1px solid rgba(255,255,255,.07)',borderRadius:8,
+                           color:'#EDEDFF',fontSize:13,outline:'none' }} />
               <button onClick={createFolder}
-                style={{ padding:'7px 14px',background:'#5B5EF4',border:'none',color:'#fff',borderRadius:8,fontSize:13,fontWeight:600,cursor:'pointer' }}>
+                style={{ padding:'7px 14px',background:'#6366F1',border:'none',color:'#fff',borderRadius:8,fontSize:13,fontWeight:600,cursor:'pointer' }}>
                 Create
               </button>
               <button onClick={() => { setCreatingFolder(false); setNewFolderName('') }}
-                style={{ padding:'7px 12px',background:'none',border:'1px solid #1E1E32',color:'#8888AA',borderRadius:8,fontSize:13,cursor:'pointer' }}>
+                style={{ padding:'7px 12px',background:'none',border:'1px solid rgba(255,255,255,.07)',color:'#8888AA',borderRadius:8,fontSize:13,cursor:'pointer' }}>
                 ×
               </button>
             </div>
           ) : (
             <button onClick={() => setCreatingFolder(true)} disabled={disableNewFolder}
-              style={{ background:'none',border:'none',color:disableNewFolder?'#55556A':'#5B5EF4',fontSize:12,
+              style={{ background:'none',border:'none',color:disableNewFolder?'#7A7AAA':'#6366F1',fontSize:12,
                          cursor:disableNewFolder?'default':'pointer',padding:'2px 0',fontWeight:500 }}>
               + New Folder
             </button>
@@ -259,12 +259,12 @@ export default function FileMoveModal({ initialSection = 'files', selectedCount,
         {/* Footer */}
         <div style={{ display:'flex',gap:10,justifyContent:'flex-end',padding:'14px 24px' }}>
           <button onClick={onClose}
-            style={{ padding:'9px 20px',background:'none',border:'1px solid #1E1E32',color:'#8888AA',
+            style={{ padding:'9px 20px',background:'none',border:'1px solid rgba(255,255,255,.07)',color:'#8888AA',
                        borderRadius:9,fontSize:13,cursor:'pointer',fontWeight:500 }}>
             Cancel
           </button>
           <button onClick={handleMoveHere} disabled={disableMoveHere || (section === 'teams' && !selectedTeam)}
-            style={{ padding:'9px 20px',background:'#5B5EF4',border:'none',color:'#fff',
+            style={{ padding:'9px 20px',background:'#6366F1',border:'none',color:'#fff',
                        borderRadius:9,fontSize:13,fontWeight:600,
                        cursor:(disableMoveHere||(section==='teams'&&!selectedTeam))?'not-allowed':'pointer',
                        opacity:(disableMoveHere||(section==='teams'&&!selectedTeam))?0.5:1 }}>

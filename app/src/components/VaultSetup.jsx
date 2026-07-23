@@ -158,9 +158,9 @@ export default function VaultSetup() {
   function handleUnlocked(){ setTick(t => t + 1) }
 
   if (loading) return (
-    <div style={{ color:'#55556A', padding:40, textAlign:'center',
+    <div style={{ color:'#7A7AAA', padding:40, textAlign:'center',
                    display:'flex', alignItems:'center', gap:10, justifyContent:'center' }}>
-      <div style={{ width:14,height:14,border:'2px solid #1E1E32',borderTopColor:'#5B5EF4',
+      <div style={{ width:14,height:14,border:'2px solid rgba(255,255,255,.07)',borderTopColor:'#6366F1',
                      borderRadius:'50%',animation:'dd-spin 0.7s linear infinite' }} />
       Loading Zero Knowledge Vault…
     </div>
@@ -173,32 +173,15 @@ export default function VaultSetup() {
   if (view === 'recover') return <RecoverFlow vaultVersion={status} onDone={() => setView('idle')} onReset={() => { setStatus('unconfigured'); setView('idle') }} onBack={() => setView('idle')} />
 
   return (
-    <div style={{ maxWidth:560 }}>
-      {/* Vault header */}
-      <div style={{ display:'flex', alignItems:'flex-start', gap:14, marginBottom:24,
-                     padding:24, background:'#11111E', border:'1px solid #1E1E32', borderRadius:14 }}>
-        <div style={{ width:44,height:44,borderRadius:12,background:'rgba(91,94,244,0.12)',
-                       border:'1px solid rgba(91,94,244,0.25)',flexShrink:0,
-                       display:'flex',alignItems:'center',justifyContent:'center' }}>
-          <svg width={22} height={22} viewBox="0 0 22 22" fill="none">
-            <rect x="3" y="10" width="16" height="10" rx="2" fill="#5B5EF4" fillOpacity=".15" stroke="#5B5EF4" strokeWidth="1.4"/>
-            <path d="M7 10V7a4 4 0 0 1 8 0v3" stroke="#5B5EF4" strokeWidth="1.4" strokeLinecap="round"/>
-            <circle cx="11" cy="15" r="2" fill="#5B5EF4"/>
-          </svg>
-        </div>
-        <div>
-          <div style={{ fontSize:16, fontWeight:700, color:'#EEEEF8', marginBottom:4,
-                         fontFamily:"'Space Grotesk',sans-serif" }}>
-            Zero Knowledge Vault
-          </div>
-          <div style={{ fontSize:13, color:'#8888AA', lineHeight:1.5 }}>
-            {status === 'unconfigured'
-              ? 'Not yet configured. Set a PIN to start encrypting.'
-              : status === 'v2'
-                ? 'ECDH P-256 · AES-256-GCM · client-side encryption only'
-                : 'Zero-knowledge encryption · client-side only'}
-          </div>
-        </div>
+    <div style={{ width:'100%' }}>
+      {/* Page heading — same structure as Workspace and Settings */}
+      <div style={{ display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:8 }}>
+        <h2 style={{ fontSize:20,fontWeight:700,color:'#EDEDFF',margin:0,fontFamily:"'Space Grotesk',sans-serif" }}>Vault</h2>
+      </div>
+      <div style={{ fontSize:12,color:'#8888AA',marginBottom:20,display:'flex',alignItems:'center',gap:6,flexWrap:'wrap' }}>
+        <span style={{ background:'rgba(99,102,241,.08)',color:'#6366F1',border:'1px solid rgba(99,102,241,.2)',borderRadius:99,padding:'2px 8px',fontSize:11,fontWeight:600 }}>Zero-knowledge</span>
+        <span style={{ background:'rgba(99,102,241,.08)',color:'#6366F1',border:'1px solid rgba(99,102,241,.2)',borderRadius:99,padding:'2px 8px',fontSize:11,fontWeight:600 }}>End-to-end encrypted</span>
+        <span style={{ color:'#7A7AAA' }}>&middot; {status === 'v2' ? 'ECDH P-256 · AES-256-GCM' : 'Client-side encryption only'}</span>
       </div>
 
       {status === 'unconfigured' && (
@@ -213,9 +196,9 @@ export default function VaultSetup() {
       )}
 
       {status === 'v1' && (
-        <div style={{ marginBottom:16, padding:'12px 16px', background:'rgba(91,94,244,0.08)',
-                       border:'1px solid rgba(91,94,244,0.25)', borderRadius:10 }}>
-          <div style={{ fontSize:13, fontWeight:600, color:'#EEEEF8', marginBottom:4 }}>
+        <div style={{ marginBottom:16, padding:'12px 16px', background:'rgba(99,102,241,0.08)',
+                       border:'1px solid rgba(99,102,241,0.25)', borderRadius:10 }}>
+          <div style={{ fontSize:13, fontWeight:600, color:'#EDEDFF', marginBottom:4 }}>
             Upgrade required for Secured Sharing
           </div>
           <div style={{ fontSize:12, color:'#8888AA', marginBottom:12, lineHeight:1.6 }}>
@@ -259,6 +242,8 @@ function VaultBrowser({ onLock }) {
   const fileInputRef        = useRef()
   const conflictResolverRef = useRef(null)
   const [conflictTarget, setConflictTarget] = useState(null)
+  const folderConflictResolverRef = useRef(null)
+  const [folderConflictTarget, setFolderConflictTarget] = useState(null)
 
   const v1Key         = sessionStorage.getItem('dd_vault_key')
   const v2PrivKeyB64  = sessionStorage.getItem('dd_vault_private_key_pkcs8')
@@ -335,6 +320,48 @@ function VaultBrowser({ onLock }) {
     }
   }
 
+  function showFolderConflictDialog(name) {
+    return new Promise(resolve => {
+      folderConflictResolverRef.current = resolve
+      setFolderConflictTarget({ name })
+    })
+  }
+
+  function resolveFolderConflict(result) {
+    setFolderConflictTarget(null)
+    if (folderConflictResolverRef.current) {
+      folderConflictResolverRef.current(result)
+      folderConflictResolverRef.current = null
+    }
+  }
+
+  async function resolveFolderConflicts(selectedFolders, destSection, destFolderId, destTeamId) {
+    let destFolders = []
+    try {
+      if (destSection === 'teams' && destTeamId) {
+        const d = await api.listTeamFiles(destTeamId, destFolderId ? { folderId: destFolderId } : {})
+        destFolders = d.folders || []
+      } else if (destSection === 'vault') {
+        const params = { vault: '1' }
+        if (destFolderId) params.folder = destFolderId
+        const d = await api.listFiles(params)
+        destFolders = d.folders || []
+      } else {
+        const d = await api.listFiles(destFolderId ? { folder: destFolderId } : {})
+        destFolders = d.folders || []
+      }
+    } catch (_) {}
+    const destByName = new Set(destFolders.map(f => f.name))
+    const decisions = new Map()
+    for (const folder of selectedFolders) {
+      if (destByName.has(folder.name)) {
+        const result = await showFolderConflictDialog(folder.name)
+        decisions.set(folder.id, result)
+      }
+    }
+    return decisions
+  }
+
   async function handleUpload(fileList) {
     if (!v1Key && !v2PrivKeyB64) { toast.error('Vault not unlocked'); return }
 
@@ -361,7 +388,7 @@ function VaultBrowser({ onLock }) {
         if (decision === 'version') {
           makeVersion = true
         } else if (decision === 'replace') {
-          await api.deleteFile(existing.id)
+          await api.permanentDeleteFile(existing.id)
           existing = null
         } else if (decision && decision.decision === 'keep' && decision.customName) {
           uploadName = decision.customName
@@ -482,15 +509,16 @@ function VaultBrowser({ onLock }) {
     }
   }
 
-  async function moveVaultFolderTreeToFiles(sourceFolder, targetFolderId, onFileStart, { deleteSource = true } = {}) {
+  async function moveVaultFolderTreeToFiles(sourceFolder, targetFolderId, onFileStart, { deleteSource = true, overrideName } = {}) {
     let newFolderId
+    const folderName = overrideName || sourceFolder.name
     try {
-      const res = await api.createFolder({ name: sourceFolder.name, parentId: targetFolderId || null })
+      const res = await api.createFolder({ name: folderName, parentId: targetFolderId || null })
       newFolderId = res.folderId
     } catch (e) {
       if (e.status === 409) {
         const d = await api.listFiles(targetFolderId ? { folder: targetFolderId } : {})
-        const existing = (d.folders || []).find(f => f.name === sourceFolder.name)
+        const existing = (d.folders || []).find(f => f.name === folderName)
         if (!existing) throw e
         newFolderId = existing.id
       } else throw e
@@ -522,15 +550,16 @@ function VaultBrowser({ onLock }) {
     if (deleteSource) try { await api.permanentDeleteFolder(sourceFolder.id) } catch (_) {}
   }
 
-  async function moveVaultFolderTreeToTeam(sourceFolder, teamId, teamKeyB64, teamParentFolderId, onFileStart, { deleteSource = true } = {}) {
+  async function moveVaultFolderTreeToTeam(sourceFolder, teamId, teamKeyB64, teamParentFolderId, onFileStart, { deleteSource = true, overrideName } = {}) {
     let newTeamFolderId
+    const folderName = overrideName || sourceFolder.name
     try {
-      const res = await api.createTeamFolder(teamId, { name: sourceFolder.name, parentId: teamParentFolderId || null })
+      const res = await api.createTeamFolder(teamId, { name: folderName, parentId: teamParentFolderId || null })
       newTeamFolderId = res.folderId
     } catch (e) {
       if (e.status === 409) {
         const d = await api.listTeamFiles(teamId, teamParentFolderId ? { folderId: teamParentFolderId } : {})
-        const existing = (d.folders || []).find(f => f.name === sourceFolder.name)
+        const existing = (d.folders || []).find(f => f.name === folderName)
         if (!existing) throw e
         newTeamFolderId = existing.id
       } else throw e
@@ -582,15 +611,19 @@ function VaultBrowser({ onLock }) {
         toast.error(e.message); loadFiles()
       }
     } else {
-      const ids = confirm.ids
+      const ids = confirm.ids || []
+      const folderIds = confirm.folderIds || []
       setSelectedIds(new Set())
+      setSelectedFolderIds(new Set())
       setFiles(prev => prev.filter(f => !ids.includes(f.id)))
-      try {
-        await Promise.all(ids.map(id => api.permanentDeleteFile(id)))
-        toast.success(`${ids.length} file(s) permanently deleted`)
-      } catch (_) {
-        toast.error('Some files could not be deleted'); loadFiles()
-      }
+      setFolders(prev => prev.filter(f => !folderIds.includes(f.id)))
+      let failed = false
+      try { if (ids.length) await Promise.all(ids.map(id => api.permanentDeleteFile(id))) }
+      catch (_) { failed = true }
+      try { if (folderIds.length) await Promise.all(folderIds.map(id => api.permanentDeleteFolder(id))) }
+      catch (_) { failed = true }
+      if (failed) { toast.error('Some items could not be deleted'); loadFiles() }
+      else toast.success('Permanently deleted')
     }
   }
 
@@ -632,8 +665,9 @@ function VaultBrowser({ onLock }) {
 
   function handleBulkDelete() {
     const ids = [...selectedIds]
-    if (!ids.length) return
-    setDeleteConfirm({ type: 'bulk', ids })
+    const folderIds = [...selectedFolderIds]
+    if (!ids.length && !folderIds.length) return
+    setDeleteConfirm({ type: 'bulk', ids, folderIds })
   }
 
   async function handleVaultMoveModalConfirm(section, folderId, teamId = null, { deleteSource = true } = {}) {
@@ -659,6 +693,7 @@ function VaultBrowser({ onLock }) {
     if (section === 'teams') {
       const teamKeyB64 = teamId ? sessionStorage.getItem(`team_key_${teamId}`) : null
       if (!teamKeyB64) { toast.error('Workspace is locked — open it in Secured Sharing first'); return }
+      const folderConflicts = await resolveFolderConflicts(selectedFolderObjs, 'teams', folderId, teamId)
       const totalCount = selectedFiles.length + selectedFolderObjs.length
       setVaultProgress({ done: 0, total: totalCount, filename: '' })
       let done = 0, success = 0
@@ -688,11 +723,14 @@ function VaultBrowser({ onLock }) {
         } catch (_) {}
       }
       for (const folder of selectedFolderObjs) {
+        const fc = folderConflicts.get(folder.id)
+        if (fc?.action === 'cancel') continue
         setVaultProgress({ done: done++, total: totalCount, filename: folder.name })
         try {
+          const overrideName = fc?.action === 'rename' ? fc.customName : undefined
           await moveVaultFolderTreeToTeam(folder, teamId, teamKeyB64, folderId, filename => {
             setVaultProgress(p => ({ ...p, filename }))
-          }, { deleteSource })
+          }, { deleteSource, overrideName })
           success++
         } catch (_) {}
       }
@@ -703,6 +741,7 @@ function VaultBrowser({ onLock }) {
     }
 
     // Files section
+    const folderConflicts = await resolveFolderConflicts(selectedFolderObjs, 'files', folderId, null)
     const totalCount = selectedFiles.length + selectedFolderObjs.length
     setVaultProgress({ done: 0, total: totalCount, filename: '' })
     let done = 0, success = 0
@@ -711,11 +750,14 @@ function VaultBrowser({ onLock }) {
       try { await handleMoveOut(file, folderId, { deleteSource }); success++ } catch (_) {}
     }
     for (const folder of selectedFolderObjs) {
+      const fc = folderConflicts.get(folder.id)
+      if (fc?.action === 'cancel') continue
       setVaultProgress({ done: done++, total: totalCount, filename: folder.name })
       try {
+        const overrideName = fc?.action === 'rename' ? fc.customName : undefined
         await moveVaultFolderTreeToFiles(folder, folderId, filename => {
           setVaultProgress(p => ({ ...p, filename }))
-        }, { deleteSource })
+        }, { deleteSource, overrideName })
         success++
       } catch (_) {}
     }
@@ -789,15 +831,19 @@ function VaultBrowser({ onLock }) {
           onDecide={resolveConflict}
         />
       )}
+      {folderConflictTarget && (
+        <VaultFolderConflictModal
+          name={folderConflictTarget.name}
+          onDecide={resolveFolderConflict}
+        />
+      )}
 
       {deleteConfirm && (
         <div style={overlay}>
           <div style={modal}>
-            <h3 style={{ fontSize:16, fontWeight:700, marginBottom:8, color:'#EEEEF8' }}>Delete permanently?</h3>
+            <h3 style={{ fontSize:16, fontWeight:700, marginBottom:8, color:'#EDEDFF' }}>Delete permanently?</h3>
             <p style={{ fontSize:13, color:'#8888AA', marginBottom:20, lineHeight:1.6 }}>
-              {deleteConfirm.type === 'single'
-                ? `"${deleteConfirm.file.filename}" will be permanently deleted from your Vault. This cannot be undone.`
-                : `${deleteConfirm.ids.length} file(s) will be permanently deleted from your Vault. This cannot be undone.`}
+              These files/folders will be permanently deleted. This cannot be undone.
             </p>
             <div style={{ display:'flex', gap:10 }}>
               <button onClick={executeDelete} style={{ flex:1, ...btn(false, true) }}>Delete permanently</button>
@@ -810,12 +856,12 @@ function VaultBrowser({ onLock }) {
       {renaming && (
         <div style={overlay}>
           <div style={modal}>
-            <h3 style={{ fontSize:16, fontWeight:700, marginBottom:16, color:'#EEEEF8' }}>Rename file</h3>
+            <h3 style={{ fontSize:16, fontWeight:700, marginBottom:16, color:'#EDEDFF' }}>Rename file</h3>
             <input autoFocus value={renameVal} onChange={e=>setRenameVal(e.target.value)}
               onKeyDown={e=>{ if(e.key==='Enter') submitRename(); if(e.key==='Escape') setRenaming(null) }}
-              style={{ width:'100%',padding:'10px 14px',border:'1px solid #1E1E32',borderRadius:10,
+              style={{ width:'100%',padding:'10px 14px',border:'1px solid rgba(255,255,255,.07)',borderRadius:10,
                         fontSize:14,outline:'none',marginBottom:16,boxSizing:'border-box',
-                        background:'#161625',color:'#EEEEF8' }} />
+                        background:'#161625',color:'#EDEDFF' }} />
             <div style={{ display:'flex', gap:10 }}>
               <button onClick={submitRename} style={{ flex:1, ...btn(true) }}>Rename</button>
               <button onClick={()=>setRenaming(null)} style={{ flex:1, ...btn(false) }}>Cancel</button>
@@ -827,13 +873,13 @@ function VaultBrowser({ onLock }) {
       {creatingFolder && (
         <div style={overlay}>
           <div style={modal}>
-            <h3 style={{ fontSize:16, fontWeight:700, marginBottom:16, color:'#EEEEF8' }}>New folder in Vault</h3>
+            <h3 style={{ fontSize:16, fontWeight:700, marginBottom:16, color:'#EDEDFF' }}>New folder in Vault</h3>
             <input autoFocus value={newFolderName} onChange={e=>setNewFolderName(e.target.value)}
               onKeyDown={e=>{ if(e.key==='Enter') handleCreateFolder(); if(e.key==='Escape'){setCreatingFolder(false);setNewFolderName('')} }}
               placeholder="Folder name"
-              style={{ width:'100%',padding:'10px 14px',border:'1px solid #1E1E32',borderRadius:10,
+              style={{ width:'100%',padding:'10px 14px',border:'1px solid rgba(255,255,255,.07)',borderRadius:10,
                         fontSize:14,outline:'none',marginBottom:16,boxSizing:'border-box',
-                        background:'#161625',color:'#EEEEF8' }} />
+                        background:'#161625',color:'#EDEDFF' }} />
             <div style={{ display:'flex', gap:10 }}>
               <button onClick={handleCreateFolder} style={{ flex:1, ...btn(true) }}>Create</button>
               <button onClick={()=>{setCreatingFolder(false);setNewFolderName('')}} style={{ flex:1, ...btn(false) }}>Cancel</button>
@@ -844,54 +890,51 @@ function VaultBrowser({ onLock }) {
 
       {/* Header */}
       <div style={{ display:'flex',alignItems:'center',justifyContent:'space-between',
-                     marginBottom:16,flexWrap:'wrap',gap:10 }}>
-        <div>
-          <div style={{ display:'flex',alignItems:'center',gap:10,marginBottom:6 }}>
-            <svg width={18} height={18} viewBox="0 0 22 22" fill="none">
-              <rect x="3" y="10" width="16" height="10" rx="2" fill="#5B5EF4" fillOpacity=".2" stroke="#5B5EF4" strokeWidth="1.4"/>
-              <path d="M7 10V7a4 4 0 0 1 8 0v3" stroke="#5B5EF4" strokeWidth="1.4" strokeLinecap="round"/>
-              <circle cx="11" cy="15" r="2" fill="#5B5EF4"/>
+                     marginBottom:8,flexWrap:'wrap',gap:10 }}>
+        <div style={{ display:'flex',alignItems:'center',gap:10 }}>
+          <div style={{ width:32,height:32,borderRadius:9,flexShrink:0,
+                         background:'linear-gradient(145deg,rgba(99,102,241,0.22),rgba(99,102,241,0.07))',
+                         border:'1.5px solid rgba(99,102,241,0.35)',
+                         display:'flex',alignItems:'center',justifyContent:'center',
+                         boxShadow:'0 0 0 2px rgba(99,102,241,0.08),0 2px 10px rgba(99,102,241,0.2)' }}>
+            <svg width={16} height={16} viewBox="0 0 24 24" fill="none">
+              <rect x="5" y="12" width="14" height="9" rx="2.5" stroke="#6366F1" strokeWidth="1.5" fill="#6366F1" fillOpacity=".15"/>
+              <path d="M8 12V9A4 4 0 0 1 16 9V12" stroke="#6366F1" strokeWidth="1.5" strokeLinecap="round"/>
+              <circle cx="12" cy="16.5" r="1.8" fill="#6366F1"/>
             </svg>
-            <div style={{ fontSize:15,fontWeight:700,color:'#EEEEF8',fontFamily:"'Space Grotesk',sans-serif" }}>
-              Vault
-            </div>
-            {/* Lock button sits right after the title */}
-            <button onClick={onLock}
-              style={{ display:'flex',alignItems:'center',gap:5,padding:'4px 10px',
-                        background:'transparent',border:'1px solid #1E1E32',
-                        borderRadius:7,cursor:'pointer',fontSize:12,fontWeight:500,color:'#8888AA',
-                        transition:'border-color 150ms,color 150ms' }}
-              onMouseEnter={e=>{ e.currentTarget.style.borderColor='#252540'; e.currentTarget.style.color='#EEEEF8' }}
-              onMouseLeave={e=>{ e.currentTarget.style.borderColor='#1E1E32'; e.currentTarget.style.color='#8888AA' }}>
-              <svg width={11} height={11} viewBox="0 0 14 14" fill="none">
-                <rect x="2" y="6" width="10" height="7" rx="1.2" stroke="currentColor" strokeWidth="1.4"/>
-                <path d="M4.5 6V4.5a2.5 2.5 0 0 1 5 0V6" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round"/>
-              </svg>
-              Lock
-            </button>
           </div>
-          <div style={{ display:'flex',alignItems:'center',gap:6,flexWrap:'wrap' }}>
-            <span style={{ background:'rgba(91,94,244,.08)',color:'#5B5EF4',border:'1px solid rgba(91,94,244,.2)',
-                            borderRadius:99,padding:'2px 8px',fontSize:11,fontWeight:600 }}>Zero-knowledge</span>
-            {isV2Session && (
-              <span style={{ background:'rgba(136,136,170,.07)',color:'#8888AA',border:'1px solid rgba(136,136,170,.15)',
-                              borderRadius:99,padding:'2px 8px',fontSize:11,fontWeight:600 }}>ECDH P-256</span>
-            )}
-            <span style={{ background:'rgba(136,136,170,.07)',color:'#8888AA',border:'1px solid rgba(136,136,170,.15)',
-                            borderRadius:99,padding:'2px 8px',fontSize:11,fontWeight:600 }}>AES-256-GCM</span>
-            <span style={{ color:'#55556A',fontSize:11 }}>· Decrypted locally only</span>
-          </div>
+          <h2 style={{ fontSize:20,fontWeight:700,color:'#EDEDFF',margin:0 }}>Vault</h2>
+          <button onClick={onLock}
+            style={{ display:'flex',alignItems:'center',gap:5,padding:'5px 12px',
+                      background:'transparent',border:'1px solid rgba(255,255,255,.07)',
+                      borderRadius:8,cursor:'pointer',fontSize:12,fontWeight:500,color:'#8888AA',
+                      transition:'border-color 150ms,color 150ms' }}
+            onMouseEnter={e=>{ e.currentTarget.style.borderColor='rgba(255,255,255,.14)'; e.currentTarget.style.color='#EDEDFF' }}
+            onMouseLeave={e=>{ e.currentTarget.style.borderColor='rgba(255,255,255,.07)'; e.currentTarget.style.color='#8888AA' }}>
+            <svg width={12} height={12} viewBox="0 0 14 14" fill="none">
+              <rect x="2" y="6" width="10" height="7" rx="1.2" stroke="currentColor" strokeWidth="1.4"/>
+              <path d="M4.5 6V4.5a2.5 2.5 0 0 1 5 0V6" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round"/>
+            </svg>
+            Lock
+          </button>
         </div>
-        <div style={{ display:'flex',gap:8 }}>
-          <button onClick={()=>setCreatingFolder(true)} style={{ ...btn(false),padding:'8px 14px',fontSize:13 }}>
-            + Folder
-          </button>
-          <button onClick={()=>fileInputRef.current?.click()} style={{ ...btn(true),padding:'8px 14px',fontSize:13 }}>
-            Upload
-          </button>
+        <div style={{ display:'flex',gap:8,alignItems:'center' }}>
+          <button onClick={()=>setCreatingFolder(true)} style={{ ...btn(false),padding:'8px 14px',fontSize:13 }}>+ Folder</button>
+          <button onClick={()=>fileInputRef.current?.click()} style={{ ...btn(true),padding:'8px 14px',fontSize:13 }}>Upload</button>
         </div>
         <input ref={fileInputRef} type="file" multiple style={{ display:'none' }}
           onChange={e=>{ const f=Array.from(e.target.files); e.target.value=''; handleUpload(f) }} />
+      </div>
+      <div style={{ fontSize:12,color:'#8888AA',marginBottom:16,display:'flex',alignItems:'center',gap:6,flexWrap:'wrap' }}>
+        <span style={{ background:'rgba(99,102,241,.08)',color:'#6366F1',border:'1px solid rgba(99,102,241,.2)',
+                        borderRadius:99,padding:'2px 8px',fontSize:11,fontWeight:600 }}>Zero-knowledge</span>
+        {isV2Session && (
+          <span style={{ background:'rgba(136,136,170,.07)',color:'#8888AA',border:'1px solid rgba(136,136,170,.15)',
+                          borderRadius:99,padding:'2px 8px',fontSize:11,fontWeight:600 }}>ECDH P-256</span>
+        )}
+        <span style={{ background:'rgba(136,136,170,.07)',color:'#8888AA',border:'1px solid rgba(136,136,170,.15)',
+                        borderRadius:99,padding:'2px 8px',fontSize:11,fontWeight:600 }}>AES-256-GCM</span>
+        <span style={{ color:'#7A7AAA',fontSize:11 }}>&middot; Decrypted locally only</span>
       </div>
 
       {/* Breadcrumbs */}
@@ -903,10 +946,10 @@ function VaultBrowser({ onLock }) {
           </button>
           {folderStack.map((f, i) => (
             <React.Fragment key={f.id}>
-              <span style={{ color:'#55556A' }}>›</span>
+              <span style={{ color:'#7A7AAA' }}>›</span>
               <button onClick={()=>navigateTo(i)}
                 style={{ background:'none',border:'none',cursor:'pointer',padding:'2px 4px',fontSize:13,
-                          color:i===folderStack.length-1?'#EEEEF8':'#8888AA',
+                          color:i===folderStack.length-1?'#EDEDFF':'#8888AA',
                           fontWeight:i===folderStack.length-1?600:400 }}>
                 {f.name}
               </button>
@@ -919,10 +962,10 @@ function VaultBrowser({ onLock }) {
 
       {/* Bulk action bar */}
       {(selectedIds.size + selectedFolderIds.size) > 0 && (
-        <div style={{ padding:'10px 16px',background:'#11111E',border:'1px solid #1E1E32',
+        <div style={{ padding:'10px 16px',background:'#111130',border:'1px solid rgba(255,255,255,.07)',
                        display:'flex',alignItems:'center',gap:14,fontSize:13,
                        borderRadius:10,marginBottom:14 }}>
-          <span style={{ fontWeight:600,color:'#EEEEF8' }}>{selectedIds.size + selectedFolderIds.size} selected</span>
+          <span style={{ fontWeight:600,color:'#EDEDFF' }}>{selectedIds.size + selectedFolderIds.size} selected</span>
           <button onClick={()=>{setSelectedIds(new Set(files.map(f=>f.id)));setSelectedFolderIds(new Set(folders.map(f=>f.id)))}}
             style={{ color:'#8888AA',background:'none',border:'none',cursor:'pointer',fontSize:12,padding:0 }}>
             Select all
@@ -940,16 +983,7 @@ function VaultBrowser({ onLock }) {
               ⧉ Copy to
             </button>
           )}
-          <button onClick={async () => {
-              if (selectedIds.size > 0) handleBulkDelete()
-              const folderIds = [...selectedFolderIds]
-              if (folderIds.length > 0) {
-                setSelectedFolderIds(new Set())
-                setFolders(prev => prev.filter(f => !folderIds.includes(f.id)))
-                try { await Promise.all(folderIds.map(id => api.permanentDeleteFolder(id))) }
-                catch (_) { toast.error('Some folders could not be deleted'); loadFiles() }
-              }
-            }}
+          <button onClick={handleBulkDelete}
             style={{ color:'#E24B4A',background:'none',border:'none',cursor:'pointer',fontSize:12,fontWeight:500 }}>
             Delete
           </button>
@@ -983,16 +1017,16 @@ function VaultBrowser({ onLock }) {
       />
 
       {vaultProgress && (
-        <div style={{ position:'fixed',bottom:24,right:24,zIndex:400,background:'#11111E',border:'1px solid #1E1E32',
+        <div style={{ position:'fixed',bottom:24,right:24,zIndex:400,background:'#111130',border:'1px solid rgba(255,255,255,.07)',
                        borderRadius:12,padding:'14px 18px',minWidth:260,boxShadow:'0 8px 32px rgba(0,0,0,.5)' }}>
-          <div style={{ fontSize:13,fontWeight:600,color:'#EEEEF8',marginBottom:6 }}>
+          <div style={{ fontSize:13,fontWeight:600,color:'#EDEDFF',marginBottom:6 }}>
             {vaultProgress.filename || 'Processing…'}
           </div>
-          <div style={{ height:4,background:'#1E1E32',borderRadius:2,overflow:'hidden' }}>
-            <div style={{ height:'100%',background:'#5B5EF4',borderRadius:2,transition:'width .3s',
+          <div style={{ height:4,background:'rgba(255,255,255,.07)',borderRadius:2,overflow:'hidden' }}>
+            <div style={{ height:'100%',background:'#6366F1',borderRadius:2,transition:'width .3s',
                            width:vaultProgress.total ? `${Math.round((vaultProgress.done/vaultProgress.total)*100)}%` : '0%' }} />
           </div>
-          <div style={{ fontSize:11,color:'#55556A',marginTop:4 }}>
+          <div style={{ fontSize:11,color:'#7A7AAA',marginTop:4 }}>
             {vaultProgress.done} / {vaultProgress.total}
           </div>
         </div>
@@ -1059,7 +1093,7 @@ export function VaultPinModal({ onUnlocked, onClose }) {
   return (
     <div style={overlay}>
       <div style={{ ...modal, maxWidth:340 }}>
-        <h3 style={{ fontSize:16, fontWeight:700, marginBottom:6, color:'#EEEEF8' }}>
+        <h3 style={{ fontSize:16, fontWeight:700, marginBottom:6, color:'#EDEDFF' }}>
           Vault PIN required
         </h3>
         <p style={{ fontSize:13, color:'#8888AA', marginBottom:18, lineHeight:1.5 }}>
@@ -1094,24 +1128,24 @@ function VaultConflictModal({ name, existing, onDecide }) {
     return `${(b / (1024 * 1024)).toFixed(1)} MB`
   }
   const optBtn = (accent) => ({
-    width:'100%', padding:'12px 16px', border:`1px solid ${accent||'#1E1E32'}`,
+    width:'100%', padding:'12px 16px', border:`1px solid ${accent||'rgba(255,255,255,.07)'}`,
     borderRadius:10, fontWeight:600, fontSize:13, cursor:'pointer', textAlign:'left',
-    background:'#161625', color:accent||'#EEEEF8',
+    background:'#161625', color:accent||'#EDEDFF',
     display:'flex', flexDirection:'column', gap:3,
   })
   if (renameMode) return (
     <div style={overlay}>
       <div style={modal}>
-        <h3 style={{ fontSize:16, fontWeight:700, marginBottom:8, color:'#EEEEF8' }}>Rename and upload</h3>
+        <h3 style={{ fontSize:16, fontWeight:700, marginBottom:8, color:'#EDEDFF' }}>Rename and upload</h3>
         <p style={{ fontSize:13, color:'#8888AA', marginBottom:16 }}>Enter a name for the uploaded file:</p>
         <input autoFocus value={customName} onChange={e=>setCustomName(e.target.value)}
           onKeyDown={e=>{
             if(e.key==='Enter'&&customName.trim()) onDecide({decision:'keep',customName:customName.trim()})
             if(e.key==='Escape') setRenameMode(false)
           }}
-          style={{ width:'100%',padding:'10px 14px',border:'1px solid #1E1E32',borderRadius:10,
+          style={{ width:'100%',padding:'10px 14px',border:'1px solid rgba(255,255,255,.07)',borderRadius:10,
                     fontSize:14,outline:'none',marginBottom:16,boxSizing:'border-box',
-                    background:'#161625',color:'#EEEEF8' }} />
+                    background:'#161625',color:'#EDEDFF' }} />
         <div style={{ display:'flex', gap:10 }}>
           <button onClick={()=>{if(customName.trim()) onDecide({decision:'keep',customName:customName.trim()})}}
             style={{ flex:1, ...btn(true) }}>Upload</button>
@@ -1123,20 +1157,20 @@ function VaultConflictModal({ name, existing, onDecide }) {
   return (
     <div style={overlay}>
       <div style={{ ...modal, maxWidth:440 }}>
-        <h3 style={{ fontSize:16, fontWeight:700, marginBottom:6, color:'#EEEEF8' }}>File already exists</h3>
+        <h3 style={{ fontSize:16, fontWeight:700, marginBottom:6, color:'#EDEDFF' }}>File already exists</h3>
         <p style={{ fontSize:13, color:'#8888AA', marginBottom:4, lineHeight:1.5 }}>
-          <strong style={{ color:'#EEEEF8' }}>"{name}"</strong> already exists in your Vault
+          <strong style={{ color:'#EDEDFF' }}>"{name}"</strong> already exists in your Vault
           {existing?.size_bytes ? ` · ${fmtSize(existing.size_bytes)} · ${new Date(existing.created_at).toLocaleDateString('en-IN')}` : ''}.
         </p>
         <p style={{ fontSize:13, color:'#8888AA', marginBottom:20 }}>What would you like to do?</p>
         <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
-          <button style={optBtn('#5B5EF4')} onClick={()=>onDecide('version')}>
+          <button style={optBtn('#6366F1')} onClick={()=>onDecide('version')}>
             <span>Create new version</span>
             <span style={{ fontSize:11,fontWeight:400,color:'#8888AA' }}>Keep old file as v1 — new upload becomes current</span>
           </button>
           <button style={optBtn('#E24B4A')} onClick={()=>onDecide('replace')}>
             <span>Replace</span>
-            <span style={{ fontSize:11,fontWeight:400,color:'#8888AA' }}>Move old file to trash, replace with new upload</span>
+            <span style={{ fontSize:11,fontWeight:400,color:'#8888AA' }}>Permanently delete old file, replace with new upload</span>
           </button>
           <button style={optBtn()} onClick={()=>setRenameMode(true)}>
             <span>Rename and upload</span>
@@ -1145,6 +1179,60 @@ function VaultConflictModal({ name, existing, onDecide }) {
           <button onClick={()=>onDecide('cancel')}
             style={{ background:'none',border:'none',fontSize:13,color:'#8888AA',cursor:'pointer',padding:'6px 0',fontWeight:500,marginTop:4 }}>
             Cancel
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ── Vault folder conflict modal ───────────────────────────────────────────
+function VaultFolderConflictModal({ name, onDecide }) {
+  const [renameMode, setRenameMode] = useState(false)
+  const [customName, setCustomName] = useState(`${name} (2)`)
+  const optBtn = (accent) => ({
+    width:'100%', padding:'12px 16px', border:`1px solid ${accent||'rgba(255,255,255,.07)'}`,
+    borderRadius:10, fontWeight:600, fontSize:13, cursor:'pointer', textAlign:'left',
+    background:'#161625', color:accent||'#EDEDFF',
+    display:'flex', flexDirection:'column', gap:3,
+  })
+  if (renameMode) return (
+    <div style={overlay}>
+      <div style={modal}>
+        <h3 style={{ fontSize:16, fontWeight:700, marginBottom:8, color:'#EDEDFF' }}>Rename folder</h3>
+        <p style={{ fontSize:13, color:'#8888AA', marginBottom:16 }}>Enter a new name for the folder:</p>
+        <input autoFocus value={customName} onChange={e=>setCustomName(e.target.value)}
+          onKeyDown={e=>{
+            if(e.key==='Enter'&&customName.trim()) onDecide({action:'rename',customName:customName.trim()})
+            if(e.key==='Escape') setRenameMode(false)
+          }}
+          style={{ width:'100%',padding:'10px 14px',border:'1px solid rgba(255,255,255,.07)',borderRadius:10,
+                    fontSize:14,outline:'none',marginBottom:16,boxSizing:'border-box',
+                    background:'#161625',color:'#EDEDFF' }} />
+        <div style={{ display:'flex', gap:10 }}>
+          <button onClick={()=>{if(customName.trim()) onDecide({action:'rename',customName:customName.trim()})}}
+            style={{ flex:1, ...btn(true) }}>Confirm</button>
+          <button onClick={()=>setRenameMode(false)} style={{ flex:1, ...btn(false) }}>Back</button>
+        </div>
+      </div>
+    </div>
+  )
+  return (
+    <div style={overlay}>
+      <div style={{ ...modal, maxWidth:440 }}>
+        <h3 style={{ fontSize:16, fontWeight:700, marginBottom:6, color:'#EDEDFF' }}>Folder already exists</h3>
+        <p style={{ fontSize:13, color:'#8888AA', marginBottom:20, lineHeight:1.5 }}>
+          A folder named <strong style={{ color:'#EDEDFF' }}>"{name}"</strong> already exists in the destination.
+          What would you like to do?
+        </p>
+        <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
+          <button style={optBtn()} onClick={()=>setRenameMode(true)}>
+            <span>Rename and move</span>
+            <span style={{ fontSize:11,fontWeight:400,color:'#8888AA' }}>Choose a new name for this folder</span>
+          </button>
+          <button onClick={()=>onDecide({action:'cancel'})}
+            style={{ background:'none',border:'none',fontSize:13,color:'#8888AA',cursor:'pointer',padding:'6px 0',fontWeight:500,marginTop:4 }}>
+            Skip this folder
           </button>
         </div>
       </div>
@@ -1215,7 +1303,7 @@ function SetupFlow({ onDone, onBack }) {
   return (
     <div style={{ maxWidth:520 }}>
       <BackBtn onClick={onBack} />
-      <h3 style={{ fontSize:16, fontWeight:700, marginBottom:20, color:'#EEEEF8',
+      <h3 style={{ fontSize:16, fontWeight:700, marginBottom:20, color:'#EDEDFF',
                     fontFamily:"'Space Grotesk',sans-serif" }}>
         Set up Zero Knowledge Vault
       </h3>
@@ -1238,16 +1326,16 @@ function SetupFlow({ onDone, onBack }) {
       {step === 2 && (
         <>
           <p style={{ fontSize:13, color:'#8888AA', marginBottom:16, lineHeight:1.7 }}>
-            Save this 12-word recovery phrase. If you forget your PIN, this is the <em style={{ color:'#EEEEF8' }}>only</em> way to recover your Vault.
+            Save this 12-word recovery phrase. If you forget your PIN, this is the <em style={{ color:'#EDEDFF' }}>only</em> way to recover your Vault.
             <strong style={{ color:'#E24B4A' }}> DataDrop cannot recover your vault without it.</strong>
           </p>
           {!phrase ? (
             <button onClick={genPhrase} style={btn(true)}>Generate phrase</button>
           ) : (
             <>
-              <div style={{ background:'#0C0C18', border:'1px solid #1E1E32', borderRadius:10,
+              <div style={{ background:'#111130', border:'1px solid rgba(255,255,255,.07)', borderRadius:10,
                              padding:16, fontFamily:"'JetBrains Mono',monospace", fontSize:13,
-                             lineHeight:2, marginBottom:16, wordBreak:'break-all', color:'#EEEEF8' }}>
+                             lineHeight:2, marginBottom:16, wordBreak:'break-all', color:'#EDEDFF' }}>
                 {phrase}
               </div>
               <div style={{ display:'flex', gap:8, marginBottom:4 }}>
@@ -1268,14 +1356,14 @@ function SetupFlow({ onDone, onBack }) {
           <textarea
             value={confirm} onChange={e => setConfirm(e.target.value)}
             placeholder="Enter all 12 words separated by spaces…"
-            style={{ width:'100%', padding:12, border:'1px solid #1E1E32', borderRadius:10,
+            style={{ width:'100%', padding:12, border:'1px solid rgba(255,255,255,.07)', borderRadius:10,
                       fontSize:13, height:80, resize:'none', marginBottom:14,
-                      background:'#161625', color:'#EEEEF8', outline:'none', boxSizing:'border-box' }}
+                      background:'#161625', color:'#EDEDFF', outline:'none', boxSizing:'border-box' }}
           />
           <label style={{ display:'flex', alignItems:'flex-start', gap:10, marginBottom:20,
                            fontSize:13, color:'#8888AA', cursor:'pointer' }}>
             <input type="checkbox" checked={ack} onChange={e=>setAck(e.target.checked)}
-              style={{ marginTop:2, accentColor:'#5B5EF4' }} />
+              style={{ marginTop:2, accentColor:'#6366F1' }} />
             I understand that if I lose my PIN and recovery phrase, my Vault data is permanently unrecoverable.
           </label>
           <button onClick={finish} disabled={saving} style={{ ...btn(true), opacity:saving?.7:1 }}>
@@ -1325,7 +1413,7 @@ function UnlockFlow({ vaultVersion, onDone, onBack, onRecover }) {
   return (
     <div style={{ maxWidth:520 }}>
       <BackBtn onClick={onBack} />
-      <h3 style={{ fontSize:16, fontWeight:700, marginBottom:8, color:'#EEEEF8',
+      <h3 style={{ fontSize:16, fontWeight:700, marginBottom:8, color:'#EDEDFF',
                     fontFamily:"'Space Grotesk',sans-serif" }}>
         Unlock Vault
       </h3>
@@ -1376,32 +1464,32 @@ function VaultResetModal({ onConfirmed, onClose }) {
           Reset Vault
         </h3>
         <p style={{ fontSize:13, color:'#8888AA', marginBottom:6, lineHeight:1.6 }}>
-          This will <strong style={{ color:'#EEEEF8' }}>permanently delete all vault files</strong> and remove your vault encryption keys. This cannot be undone.
+          This will <strong style={{ color:'#EDEDFF' }}>permanently delete all vault files</strong> and remove your vault encryption keys. This cannot be undone.
         </p>
         <p style={{ fontSize:13, color:'#8888AA', marginBottom:16, lineHeight:1.6 }}>
           After reset, you can create a fresh vault with a new PIN and recovery phrase.
         </p>
         <label style={{ fontSize:11, fontWeight:700, textTransform:'uppercase',
-                         letterSpacing:'.5px', color:'#55556A', display:'block', marginBottom:8 }}>
+                         letterSpacing:'.5px', color:'#7A7AAA', display:'block', marginBottom:8 }}>
           Type DELETE to confirm
         </label>
         <input
           value={typed} onChange={e => setTyped(e.target.value)}
           placeholder="DELETE"
-          style={{ width:'100%', padding:'10px 14px', border:`1px solid ${confirmed?'#E24B4A':'#1E1E32'}`,
+          style={{ width:'100%', padding:'10px 14px', border:`1px solid ${confirmed?'#E24B4A':'rgba(255,255,255,.07)'}`,
                     borderRadius:10, fontSize:14, outline:'none', marginBottom:16,
-                    background:'#161625', color:'#EEEEF8', boxSizing:'border-box' }}
+                    background:'#161625', color:'#EDEDFF', boxSizing:'border-box' }}
         />
         <div style={{ display:'flex', gap:10 }}>
           <button onClick={handleReset} disabled={!confirmed || loading}
-            style={{ flex:1, padding:'10px', background:confirmed?'#E24B4A':'#1E1E32',
-                      border:'none', color:confirmed?'#fff':'#55556A', borderRadius:9,
+            style={{ flex:1, padding:'10px', background:confirmed?'#E24B4A':'rgba(255,255,255,.07)',
+                      border:'none', color:confirmed?'#fff':'#7A7AAA', borderRadius:9,
                       fontSize:13, fontWeight:700, cursor:confirmed&&!loading?'pointer':'not-allowed',
                       opacity:loading?.7:1 }}>
             {loading ? 'Deleting…' : 'Reset Vault'}
           </button>
           <button onClick={onClose}
-            style={{ flex:1, padding:'10px', background:'none', border:'1px solid #1E1E32',
+            style={{ flex:1, padding:'10px', background:'none', border:'1px solid rgba(255,255,255,.07)',
                       color:'#8888AA', borderRadius:9, fontSize:13, cursor:'pointer' }}>
             Cancel
           </button>
@@ -1478,7 +1566,7 @@ function RecoverFlow({ vaultVersion, onDone, onReset, onBack }) {
   return (
     <div style={{ maxWidth:520 }}>
       <BackBtn onClick={onBack} />
-      <h3 style={{ fontSize:16, fontWeight:700, marginBottom:8, color:'#EEEEF8',
+      <h3 style={{ fontSize:16, fontWeight:700, marginBottom:8, color:'#EDEDFF',
                     fontFamily:"'Space Grotesk',sans-serif" }}>
         Recover Vault
       </h3>
@@ -1488,9 +1576,9 @@ function RecoverFlow({ vaultVersion, onDone, onReset, onBack }) {
       <textarea
         value={phrase} onChange={e=>setPhrase(e.target.value)}
         placeholder="word1 word2 word3 … word12"
-        style={{ width:'100%', padding:12, border:'1px solid #1E1E32', borderRadius:10,
+        style={{ width:'100%', padding:12, border:'1px solid rgba(255,255,255,.07)', borderRadius:10,
                   fontSize:13, height:72, resize:'none', marginBottom:14,
-                  background:'#161625', color:'#EEEEF8', outline:'none', boxSizing:'border-box' }}
+                  background:'#161625', color:'#EDEDFF', outline:'none', boxSizing:'border-box' }}
       />
       <PinInput value={newPin}  onChange={setNewPin}  label="New PIN" />
       <PinInput value={newPin2} onChange={setNewPin2} label="Confirm new PIN" />
@@ -1499,8 +1587,8 @@ function RecoverFlow({ vaultVersion, onDone, onReset, onBack }) {
         {loading ? 'Recovering…' : 'Recover Vault'}
       </button>
 
-      <div style={{ marginTop:28, paddingTop:20, borderTop:'1px solid #1E1E32' }}>
-        <p style={{ fontSize:12, color:'#55556A', marginBottom:10 }}>
+      <div style={{ marginTop:28, paddingTop:20, borderTop:'1px solid rgba(255,255,255,.07)' }}>
+        <p style={{ fontSize:12, color:'#7A7AAA', marginBottom:10 }}>
           Lost your recovery phrase too?
         </p>
         <button onClick={() => setShowReset(true)}
@@ -1521,16 +1609,16 @@ function PinInput({ value, onChange, label, autoFocus }) {
   return (
     <div style={{ marginBottom: 14 }}>
       <label style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase',
-                       letterSpacing: '.5px', color: '#55556A', display: 'block', marginBottom: 8 }}>
+                       letterSpacing: '.5px', color: '#7A7AAA', display: 'block', marginBottom: 8 }}>
         {label}
       </label>
       <input
         type="password" inputMode="numeric" maxLength={6} autoFocus={autoFocus}
         value={value} onChange={e => onChange(e.target.value.replace(/\D/g, '').slice(0, 6))}
         placeholder="••••••"
-        style={{ padding: '10px 16px', border: '1px solid #1E1E32', borderRadius: 10,
+        style={{ padding: '10px 16px', border: '1px solid rgba(255,255,255,.07)', borderRadius: 10,
                   fontSize: 22, letterSpacing: 10, width: 160, outline: 'none',
-                  background: '#161625', color: '#EEEEF8' }}
+                  background: '#161625', color: '#EDEDFF' }}
       />
     </div>
   )
@@ -1554,20 +1642,20 @@ function btn(primary, danger) {
   return {
     padding: '10px 20px', borderRadius: 10, fontSize: 14, fontWeight: 600,
     cursor: 'pointer',
-    border: danger ? '1px solid rgba(226,75,74,0.3)' : primary ? 'none' : '1px solid #1E1E32',
-    background: danger ? 'rgba(226,75,74,0.1)' : primary ? '#5B5EF4' : '#161625',
+    border: danger ? '1px solid rgba(226,75,74,0.3)' : primary ? 'none' : '1px solid rgba(255,255,255,.07)',
+    background: danger ? 'rgba(226,75,74,0.1)' : primary ? '#6366F1' : '#161625',
     color: danger ? '#E24B4A' : primary ? '#fff' : '#8888AA',
   }
 }
 
 const overlay = {
-  position: 'fixed', inset: 0, background: 'rgba(7,7,13,0.88)', zIndex: 300,
+  position: 'fixed', inset: 0, background: 'rgba(8,8,26,0.88)', zIndex: 300,
   display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20,
   backdropFilter: 'blur(8px)',
 }
 
 const modal = {
-  background: '#0F0F1A', border: '1px solid #1E1E32',
+  background: '#0D0D22', border: '1px solid rgba(255,255,255,.07)',
   borderRadius: 16, padding: 28, width: '100%', maxWidth: 380,
   boxShadow: '0 24px 64px rgba(0,0,0,0.6)',
 }

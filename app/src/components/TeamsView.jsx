@@ -3,20 +3,21 @@ import { api, deriveTeamKey, encryptForVault, decryptFromVault, wrapDEKWithPubli
 import { useToastMethods } from './Toast.jsx'
 import { useBreakpoint } from '../lib/hooks.js'
 import FileGrid from './FileGrid.jsx'
+import UploadProgressPanel from './UploadProgressPanel.jsx'
 
-// dark tokens: bg=#07070D bg2=#0F0F1A bg3=#11111E bg4=#161625
-// border=#1E1E32 border2=#252540 indigo=#5B5EF4 green=#00C27C
-// red=#E24B4A amber=#F59E0B textP=#EEEEF8 textS=#8888AA textT=#55556A
+// dark tokens: bg=#08081A bg2=#0D0D22 bg3=#111130 bg4=#161625
+// border=rgba(255,255,255,.07) border2=rgba(255,255,255,.14) indigo=#6366F1 green=#00C27C
+// red=#E24B4A amber=#F59E0B textP=#EDEDFF textS=#8888AA textT=#7A7AAA
 
-const card = { background: '#11111E', border: '1px solid #1E1E32', borderRadius: 12, padding: 20 }
+const card = { background: '#111130', border: '1px solid rgba(255,255,255,.07)', borderRadius: 12, padding: 20 }
 const btn = (variant = 'primary', sm = false) => ({
   padding: sm ? '5px 12px' : '8px 16px', fontSize: sm ? 12 : 13, fontWeight: 600,
   border: 'none', borderRadius: 7, cursor: 'pointer',
-  ...(variant === 'primary' ? { background: '#5B5EF4', color: '#fff' } :
+  ...(variant === 'primary' ? { background: '#6366F1', color: '#fff' } :
       variant === 'danger'  ? { background: 'rgba(226,75,74,.12)', color: '#E24B4A', border: '1px solid rgba(226,75,74,.25)' } :
       variant === 'success' ? { background: 'rgba(0,194,124,.12)', color: '#00C27C', border: '1px solid rgba(0,194,124,.25)' } :
       variant === 'warning' ? { background: 'rgba(245,158,11,.12)', color: '#F59E0B', border: '1px solid rgba(245,158,11,.25)' } :
-      /* ghost */              { background: '#161625', color: '#8888AA', border: '1px solid #1E1E32' }),
+      /* ghost */              { background: '#161625', color: '#8888AA', border: '1px solid rgba(255,255,255,.07)' }),
 })
 
 function fmtSize(b) {
@@ -89,19 +90,19 @@ async function generateVideoThumb(file) {
 
 function Modal({ title, onClose, children, footer }) {
   return (
-    <div style={{ position:'fixed',inset:0,background:'rgba(7,7,13,.88)',backdropFilter:'blur(4px)',display:'flex',
+    <div style={{ position:'fixed',inset:0,background:'rgba(8,8,26,.88)',backdropFilter:'blur(4px)',display:'flex',
                    alignItems:'center',justifyContent:'center',zIndex:200,padding:16 }}
       onClick={e => e.target === e.currentTarget && onClose()}>
-      <div style={{ background:'#0F0F1A',border:'1px solid #1E1E32',borderRadius:16,width:480,maxWidth:'100%',
+      <div style={{ background:'#0D0D22',border:'1px solid rgba(255,255,255,.07)',borderRadius:16,width:480,maxWidth:'100%',
                      maxHeight:'85vh',overflow:'auto',boxShadow:'0 20px 60px rgba(0,0,0,.6)',display:'flex',flexDirection:'column' }}>
-        <div style={{ padding:'18px 22px',borderBottom:'1px solid #1E1E32',display:'flex',justifyContent:'space-between',
-                       alignItems:'center',position:'sticky',top:0,background:'#0F0F1A',zIndex:1 }}>
-          <span style={{ fontWeight:700,fontSize:15,color:'#EEEEF8' }}>{title}</span>
+        <div style={{ padding:'18px 22px',borderBottom:'1px solid rgba(255,255,255,.07)',display:'flex',justifyContent:'space-between',
+                       alignItems:'center',position:'sticky',top:0,background:'#0D0D22',zIndex:1 }}>
+          <span style={{ fontWeight:700,fontSize:15,color:'#EDEDFF' }}>{title}</span>
           <button onClick={onClose} style={{ background:'#161625',border:'none',fontSize:20,cursor:'pointer',color:'#8888AA',borderRadius:6,width:28,height:28,display:'flex',alignItems:'center',justifyContent:'center' }}>&times;</button>
         </div>
         <div style={{ padding:'18px 22px',flex:1 }}>{children}</div>
         {footer && (
-          <div style={{ padding:'14px 22px',borderTop:'1px solid #1E1E32',display:'flex',justifyContent:'flex-end',gap:8,position:'sticky',bottom:0,background:'#0F0F1A' }}>
+          <div style={{ padding:'14px 22px',borderTop:'1px solid rgba(255,255,255,.07)',display:'flex',justifyContent:'flex-end',gap:8,position:'sticky',bottom:0,background:'#0D0D22' }}>
             {footer}
           </div>
         )}
@@ -113,9 +114,9 @@ function Modal({ title, onClose, children, footer }) {
 const ROLE_LABELS = { read: 'Read only', upload: 'Can upload', full: 'Full access', admin: 'Admin', owner: 'Owner' }
 const ROLE_COLORS = {
   owner:  ['rgba(167,139,250,.15)', '#a78bfa', 'rgba(167,139,250,.3)'],
-  admin:  ['rgba(91,94,244,.12)',   '#5B5EF4', 'rgba(91,94,244,.25)'],
+  admin:  ['rgba(99,102,241,.12)',   '#6366F1', 'rgba(99,102,241,.25)'],
   full:   ['rgba(0,194,124,.1)',    '#00C27C', 'rgba(0,194,124,.25)'],
-  upload: ['rgba(136,136,170,.1)', '#8888AA', '#1E1E32'],
+  upload: ['rgba(136,136,170,.1)', '#8888AA', 'rgba(255,255,255,.07)'],
   read:   ['rgba(245,158,11,.1)',   '#F59E0B', 'rgba(245,158,11,.25)'],
 }
 function RoleBadge({ role }) {
@@ -145,12 +146,12 @@ function PassphraseModal({ teamName, onUnlock, onClose }) {
         </button>
       </>}>
       <p style={{ fontSize:13,color:'#8888AA',marginBottom:14,lineHeight:1.6 }}>
-        Enter the passphrase to access <strong style={{ color:'#EEEEF8' }}>{teamName}</strong>. Decrypted locally &mdash; key never leaves your device.
+        Enter the passphrase to access <strong style={{ color:'#EDEDFF' }}>{teamName}</strong>. Decrypted locally &mdash; key never leaves your device.
       </p>
       <input type="password" placeholder="Team passphrase" value={pass}
         onChange={e => setPass(e.target.value)} onKeyDown={e => e.key === 'Enter' && submit()}
-        style={{ width:'100%',padding:'10px 12px',border:'1px solid #1E1E32',borderRadius:8,fontSize:14,outline:'none',
-                  marginBottom:10,boxSizing:'border-box',background:'#161625',color:'#EEEEF8' }} autoFocus />
+        style={{ width:'100%',padding:'10px 12px',border:'1px solid rgba(255,255,255,.07)',borderRadius:8,fontSize:14,outline:'none',
+                  marginBottom:10,boxSizing:'border-box',background:'#161625',color:'#EDEDFF' }} autoFocus />
       {error && <div style={{ color:'#E24B4A',fontSize:13,marginBottom:8 }}>{error}</div>}
       <div style={{ padding:'10px 12px',background:'rgba(245,158,11,.1)',borderRadius:8,border:'1px solid rgba(245,158,11,.25)',fontSize:12,color:'#F59E0B',lineHeight:1.5 }}>
         Passphrase never sent to our servers. Not even we can read team files.
@@ -159,25 +160,80 @@ function PassphraseModal({ teamName, onUnlock, onClose }) {
   )
 }
 
-function ConflictModal({ filename, onResolve, onClose }) {
-  return (
-    <Modal title={`"${filename}" already exists`} onClose={onClose}>
-      <p style={{ fontSize:13,color:'#8888AA',marginBottom:18 }}>A file with this name already exists here. What would you like to do?</p>
-      <div style={{ display:'flex',flexDirection:'column',gap:10 }}>
-        {[
-          { key:'version', label:'Save as new version',   sub:'Keep the existing file and save this as v2, v3, etc.', v:'primary' },
-          { key:'replace', label:'Replace',               sub:'Overwrite the existing file permanently.',              v:'warning' },
-          { key:'keep',    label:'Keep both',             sub:'Upload with a different name.',                         v:'ghost'   },
-          { key:'cancel',  label:'Cancel',                sub:null,                                                    v:'ghost'   },
-        ].map(({ key, label, sub, v }) => (
-          <button key={key} onClick={() => onResolve(key)}
-            style={{ ...btn(v), textAlign:'left', padding:'12px 16px', borderRadius:10, color: key==='cancel'?'#55556A':undefined }}>
-            <div style={{ fontWeight:700,marginBottom: sub?2:0 }}>{label}</div>
-            {sub && <div style={{ fontSize:12,fontWeight:400,opacity:.7 }}>{sub}</div>}
-          </button>
-        ))}
+function ConflictModal({ filename, existing, onResolve }) {
+  const [renameMode, setRenameMode] = React.useState(false)
+  const [customName, setCustomName] = React.useState(() => {
+    const dotIdx = filename.lastIndexOf('.')
+    const base = dotIdx >= 0 ? filename.slice(0, dotIdx) : filename
+    const ext  = dotIdx >= 0 ? filename.slice(dotIdx) : ''
+    return `${base} (2)${ext}`
+  })
+  function fmtSize(b) {
+    if (!b) return ''
+    if (b < 1024) return `${b} B`
+    if (b < 1024*1024) return `${(b/1024).toFixed(1)} KB`
+    return `${(b/(1024*1024)).toFixed(1)} MB`
+  }
+  const overlay = { position:'fixed',inset:0,background:'rgba(8,8,26,0.85)',zIndex:200,backdropFilter:'blur(8px)' }
+  const card    = { background:'#0D0D22',border:'1px solid rgba(255,255,255,.07)',borderRadius:16,padding:28,width:'100%',maxWidth:440 }
+  const optBtn  = (accent) => ({
+    width:'100%',padding:'12px 16px',border:`1px solid ${accent||'rgba(255,255,255,.07)'}`,borderRadius:10,
+    fontWeight:600,fontSize:13,cursor:'pointer',textAlign:'left',
+    background:'#161625',color:accent||'#EDEDFF',
+    display:'flex',flexDirection:'column',gap:3,
+  })
+  if (renameMode) return (
+    <>
+      <div style={overlay} onClick={() => setRenameMode(false)} />
+      <div style={{ position:'fixed',inset:0,zIndex:301,display:'flex',alignItems:'center',justifyContent:'center',padding:20 }}>
+        <div style={{ ...card, maxWidth:420 }}>
+          <h3 style={{ fontSize:16,fontWeight:700,color:'#EDEDFF',marginBottom:8 }}>Rename and upload</h3>
+          <p style={{ fontSize:13,color:'#8888AA',marginBottom:16 }}>Enter a name for the uploaded file:</p>
+          <input autoFocus value={customName} onChange={e => setCustomName(e.target.value)}
+            onKeyDown={e => { if (e.key==='Enter' && customName.trim()) onResolve({ decision:'keep', customName:customName.trim() }); if (e.key==='Escape') setRenameMode(false) }}
+            style={{ width:'100%',padding:'10px 14px',border:'1px solid rgba(255,255,255,.07)',borderRadius:10,fontSize:14,outline:'none',background:'#161625',color:'#EDEDFF',boxSizing:'border-box',marginBottom:16 }} />
+          <div style={{ display:'flex',gap:10 }}>
+            <button onClick={() => { if (customName.trim()) onResolve({ decision:'keep', customName:customName.trim() }) }}
+              style={{ flex:1,padding:'10px 20px',background:'#6366F1',color:'#fff',border:'none',borderRadius:10,fontWeight:600,fontSize:14,cursor:'pointer' }}>Upload</button>
+            <button onClick={() => setRenameMode(false)}
+              style={{ flex:1,padding:'10px 20px',background:'#161625',color:'#8888AA',border:'1px solid rgba(255,255,255,.07)',borderRadius:10,fontWeight:600,fontSize:14,cursor:'pointer' }}>Back</button>
+          </div>
+        </div>
       </div>
-    </Modal>
+    </>
+  )
+  return (
+    <>
+      <div style={overlay} />
+      <div style={{ position:'fixed',inset:0,zIndex:301,display:'flex',alignItems:'center',justifyContent:'center',padding:20 }}>
+        <div style={card}>
+          <h3 style={{ fontSize:16,fontWeight:700,color:'#EDEDFF',marginBottom:6 }}>File already exists</h3>
+          <p style={{ fontSize:13,color:'#8888AA',marginBottom:4,lineHeight:1.5 }}>
+            <strong style={{ color:'#EDEDFF' }}>"{filename}"</strong> already exists
+            {existing?.size_bytes ? ` · ${fmtSize(existing.size_bytes)} · ${new Date(existing.created_at).toLocaleDateString('en-IN')}` : ''}.
+          </p>
+          <p style={{ fontSize:13,color:'#8888AA',marginBottom:20 }}>What would you like to do?</p>
+          <div style={{ display:'flex',flexDirection:'column',gap:8 }}>
+            <button style={optBtn('#6366F1')} onClick={() => onResolve('version')}>
+              <span>Create new version</span>
+              <span style={{ fontSize:11,fontWeight:400,color:'#8888AA' }}>Keep old file as v1 — new upload becomes current</span>
+            </button>
+            <button style={optBtn('#E24B4A')} onClick={() => onResolve('replace')}>
+              <span>Replace</span>
+              <span style={{ fontSize:11,fontWeight:400,color:'#8888AA' }}>Delete existing file and replace with new upload</span>
+            </button>
+            <button style={optBtn()} onClick={() => setRenameMode(true)}>
+              <span>Rename and upload</span>
+              <span style={{ fontSize:11,fontWeight:400,color:'#8888AA' }}>Choose a new name and upload alongside the existing file</span>
+            </button>
+            <button onClick={() => onResolve('cancel')}
+              style={{ background:'none',border:'none',fontSize:13,color:'#8888AA',cursor:'pointer',padding:'6px 0',fontWeight:500,marginTop:4 }}>
+              Cancel
+            </button>
+          </div>
+        </div>
+      </div>
+    </>
   )
 }
 
@@ -265,7 +321,7 @@ function TeamPreviewModal({ file, teamKeyB64, onClose }) {
             </div>
             <div style={{ fontSize:16,fontWeight:600,marginBottom:8 }}>{file.filename}</div>
             <div style={{ color:'rgba(255,255,255,.5)',marginBottom:24 }}>Preview not available</div>
-            <button onClick={dl} disabled={dlLoading} style={{ background:'#5B5EF4',color:'#fff',padding:'12px 24px',borderRadius:8,border:'none',fontWeight:600,cursor:'pointer' }}>
+            <button onClick={dl} disabled={dlLoading} style={{ background:'#6366F1',color:'#fff',padding:'12px 24px',borderRadius:8,border:'none',fontWeight:600,cursor:'pointer' }}>
               {dlLoading ? '↓ Downloading…' : '↓ Download'}
             </button>
           </div>
@@ -298,33 +354,33 @@ function TeamVersionHistory({ teamId, file, teamKeyB64, onClose }) {
           </span>
           <span style={{ fontSize:12,color:'#00C27C',fontWeight:600 }}>{file.filename}</span>
         </div>
-        <div style={{ fontSize:11,color:'#55556A' }}>
+        <div style={{ fontSize:11,color:'#7A7AAA' }}>
           {fmtSize(file.size_bytes)}
-          {file.uploaded_by_username && <span> &middot; <span style={{ color:'#5B5EF4',fontWeight:600 }}>@{file.uploaded_by_username}</span></span>}
+          {file.uploaded_by_username && <span> &middot; <span style={{ color:'#6366F1',fontWeight:600 }}>@{file.uploaded_by_username}</span></span>}
           {file.uploaded_by_name && !file.uploaded_by_username && <span> &middot; {file.uploaded_by_name}</span>}
           {file.created_at && <span> &middot; {new Date(file.created_at).toLocaleDateString('en-IN',{ day:'numeric',month:'short',year:'numeric' })}</span>}
         </div>
       </div>
-      {loading ? <div style={{ textAlign:'center',color:'#55556A',padding:20 }}>Loading&hellip;</div>
+      {loading ? <div style={{ textAlign:'center',color:'#7A7AAA',padding:20 }}>Loading&hellip;</div>
         : versions.length === 0 ? (
-          <div style={{ color:'#55556A',fontSize:12,textAlign:'center',padding:'12px 0' }}>
+          <div style={{ color:'#7A7AAA',fontSize:12,textAlign:'center',padding:'12px 0' }}>
             No older versions yet. Upload the same filename again to add a new version.
           </div>
         ) : (
           <>
-            <div style={{ fontSize:11,fontWeight:700,color:'#55556A',textTransform:'uppercase',letterSpacing:.5,marginBottom:8 }}>Older versions</div>
+            <div style={{ fontSize:11,fontWeight:700,color:'#7A7AAA',textTransform:'uppercase',letterSpacing:.5,marginBottom:8 }}>Older versions</div>
             {[...versions].reverse().map(v => {
               const uploader = v.uploaded_by_username ? `@${v.uploaded_by_username}` : (v.uploaded_by_name||null)
               return (
-                <div key={v.id} style={{ display:'flex',alignItems:'center',gap:10,padding:'10px 12px',marginBottom:4,background:'#161625',borderRadius:8,border:'1px solid #1E1E32' }}>
-                  <span style={{ background:'rgba(91,94,244,.12)',color:'#5B5EF4',fontWeight:700,fontSize:11,padding:'2px 8px',borderRadius:99,flexShrink:0,whiteSpace:'nowrap' }}>
+                <div key={v.id} style={{ display:'flex',alignItems:'center',gap:10,padding:'10px 12px',marginBottom:4,background:'#161625',borderRadius:8,border:'1px solid rgba(255,255,255,.07)' }}>
+                  <span style={{ background:'rgba(99,102,241,.12)',color:'#6366F1',fontWeight:700,fontSize:11,padding:'2px 8px',borderRadius:99,flexShrink:0,whiteSpace:'nowrap' }}>
                     v{v.version_number}
                   </span>
                   <div style={{ flex:1,minWidth:0 }}>
-                    <div style={{ fontSize:12,fontWeight:600,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap',color:'#EEEEF8' }}>{v.filename}</div>
-                    <div style={{ fontSize:11,color:'#55556A',marginTop:1 }}>
+                    <div style={{ fontSize:12,fontWeight:600,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap',color:'#EDEDFF' }}>{v.filename}</div>
+                    <div style={{ fontSize:11,color:'#7A7AAA',marginTop:1 }}>
                       {fmtSize(v.size_bytes)}
-                      {uploader && <span> &middot; <span style={{ color:'#5B5EF4' }}>{uploader}</span></span>}
+                      {uploader && <span> &middot; <span style={{ color:'#6366F1' }}>{uploader}</span></span>}
                       {v.created_at && <span> &middot; {fmtDate(v.created_at)}</span>}
                     </div>
                   </div>
@@ -384,7 +440,7 @@ function ManagePanel({ teamId, data, currentUserId, myRole, onClose, onRefresh, 
     if (!inviteEmail.trim()) return
     setInviting(true)
     try {
-      await api.inviteMember(teamId, { emailOrUsername: inviteEmail.trim(), role: inviteRole })
+      await api.inviteMember(teamId, { email: inviteEmail.trim(), role: inviteRole })
       toast.success(`Invite sent to ${inviteEmail}`)
       setInviteEmail(''); setShowInvite(false); onRefresh()
     } catch(e) { toast.error(e.message) }
@@ -402,19 +458,19 @@ function ManagePanel({ teamId, data, currentUserId, myRole, onClose, onRefresh, 
   }
 
   return (
-    <div style={{ display:'flex',flexDirection:'column',background:'#0F0F1A',flex:1,minHeight:0 }}>
-      <div style={{ padding:'20px 22px 16px',background:'#0F0F1A',borderBottom:'1px solid #1E1E32',flexShrink:0 }}>
+    <div style={{ display:'flex',flexDirection:'column',background:'#0D0D22',flex:1,minHeight:0 }}>
+      <div style={{ padding:'20px 22px 16px',background:'#0D0D22',borderBottom:'1px solid rgba(255,255,255,.07)',flexShrink:0 }}>
         <div style={{ display:'flex',justifyContent:'space-between',alignItems:'flex-start' }}>
           <div>
-            <div style={{ fontWeight:700,fontSize:16,color:'#EEEEF8',marginBottom:5 }}>{team.name}</div>
+            <div style={{ fontWeight:700,fontSize:16,color:'#EDEDFF',marginBottom:5 }}>{team.name}</div>
             <div style={{ display:'flex',alignItems:'center',gap:8 }}>
               <span style={{ fontSize:12,color:'#8888AA' }}>{members.length} member{members.length!==1?'s':''}</span>
-              <span style={{ color:'#1E1E32' }}>|</span>
+              <span style={{ color:'rgba(255,255,255,.07)' }}>|</span>
               <RoleBadge role={myRole} />
             </div>
           </div>
           <button onClick={onClose}
-            style={{ background:'#161625',border:'1px solid #1E1E32',borderRadius:8,width:32,height:32,fontSize:18,cursor:'pointer',color:'#8888AA',display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0 }}>
+            style={{ background:'#161625',border:'1px solid rgba(255,255,255,.07)',borderRadius:8,width:32,height:32,fontSize:18,cursor:'pointer',color:'#8888AA',display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0 }}>
             &times;
           </button>
         </div>
@@ -422,25 +478,25 @@ function ManagePanel({ teamId, data, currentUserId, myRole, onClose, onRefresh, 
       <div style={{ flex:1,overflowY:'auto',padding:'0 0 24px' }}>
         <div style={{ padding:'20px 22px 0' }}>
           <div style={{ display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:14 }}>
-            <span style={{ fontSize:13,fontWeight:700,color:'#EEEEF8' }}>Members</span>
+            <span style={{ fontSize:13,fontWeight:700,color:'#EDEDFF' }}>Members</span>
             {canAdmin && (
               <button onClick={() => { setShowInvite(v => !v); setInviteEmail('') }}
                 style={{ fontSize:12,fontWeight:700,padding:'5px 12px',borderRadius:7,cursor:'pointer',
-                          border: showInvite ? '1px solid #1E1E32' : 'none',
-                          background:showInvite?'#161625':'#5B5EF4',color:showInvite?'#8888AA':'#fff' }}>
+                          border: showInvite ? '1px solid rgba(255,255,255,.07)' : 'none',
+                          background:showInvite?'#161625':'#6366F1',color:showInvite?'#8888AA':'#fff' }}>
                 {showInvite ? 'Cancel' : '+ Invite'}
               </button>
             )}
           </div>
           {showInvite && (
-            <div style={{ background:'#11111E',borderRadius:12,border:'1px solid #1E1E32',padding:18,marginBottom:16 }}>
-              <div style={{ fontSize:13,fontWeight:600,color:'#EEEEF8',marginBottom:12 }}>Invite someone</div>
+            <div style={{ background:'#111130',borderRadius:12,border:'1px solid rgba(255,255,255,.07)',padding:18,marginBottom:16 }}>
+              <div style={{ fontSize:13,fontWeight:600,color:'#EDEDFF',marginBottom:12 }}>Invite someone</div>
               <input
-                style={{ width:'100%',padding:'10px 13px',border:'1px solid #1E1E32',borderRadius:9,fontSize:13,outline:'none',boxSizing:'border-box',marginBottom:14,background:'#161625',color:'#EEEEF8' }}
-                placeholder="Email or @username" value={inviteEmail}
+                style={{ width:'100%',padding:'10px 13px',border:'1px solid rgba(255,255,255,.07)',borderRadius:9,fontSize:13,outline:'none',boxSizing:'border-box',marginBottom:14,background:'#161625',color:'#EDEDFF' }}
+                placeholder="Email address" value={inviteEmail}
                 onChange={e => setInviteEmail(e.target.value)}
                 onKeyDown={e => e.key==='Enter' && handleInvite()} autoFocus />
-              <div style={{ fontSize:11,fontWeight:700,color:'#55556A',textTransform:'uppercase',letterSpacing:.5,marginBottom:8 }}>Access level</div>
+              <div style={{ fontSize:11,fontWeight:700,color:'#7A7AAA',textTransform:'uppercase',letterSpacing:.5,marginBottom:8 }}>Access level</div>
               <div style={{ display:'grid',gridTemplateColumns:'1fr 1fr',gap:7,marginBottom:14 }}>
                 {[
                   { v:'read',   l:'Read only'   },
@@ -450,11 +506,11 @@ function ManagePanel({ teamId, data, currentUserId, myRole, onClose, onRefresh, 
                 ].map(({ v, l }) => (
                   <button key={v} onClick={() => setInviteRole(v)}
                     style={{ padding:'9px 8px',fontSize:12,fontWeight:600,borderRadius:9,cursor:'pointer',textAlign:'center',
-                              border: inviteRole===v ? '2px solid #5B5EF4' : '1px solid #1E1E32',
-                              background: inviteRole===v ? 'rgba(91,94,244,.12)' : '#161625',
-                              color: inviteRole===v ? '#5B5EF4' : '#8888AA' }}>
+                              border: inviteRole===v ? '2px solid #6366F1' : '1px solid rgba(255,255,255,.07)',
+                              background: inviteRole===v ? 'rgba(99,102,241,.12)' : '#161625',
+                              color: inviteRole===v ? '#6366F1' : '#8888AA' }}>
                     {l}
-                    <div style={{ fontSize:10,fontWeight:400,color:inviteRole===v?'#8888AA':'#55556A',marginTop:2,lineHeight:1.3 }}>{ROLE_DESCS[v]}</div>
+                    <div style={{ fontSize:10,fontWeight:400,color:inviteRole===v?'#8888AA':'#7A7AAA',marginTop:2,lineHeight:1.3 }}>{ROLE_DESCS[v]}</div>
                   </button>
                 ))}
               </div>
@@ -473,46 +529,46 @@ function ManagePanel({ teamId, data, currentUserId, myRole, onClose, onRefresh, 
               const [g1, g2]   = avatarGrad(m.display_name || m.email)
               return (
                 <div key={m.id}
-                  style={{ background:'#11111E',borderRadius:12,border:`1px solid ${isExpanded?'#5B5EF4':'#1E1E32'}`,
-                             overflow:'hidden',boxShadow: isExpanded?'0 0 0 3px rgba(91,94,244,.1)':'none',transition:'box-shadow .15s,border-color .15s' }}>
+                  style={{ background:'#111130',borderRadius:12,border:`1px solid ${isExpanded?'#6366F1':'rgba(255,255,255,.07)'}`,
+                             overflow:'hidden',boxShadow: isExpanded?'0 0 0 3px rgba(99,102,241,.1)':'none',transition:'box-shadow .15s,border-color .15s' }}>
                   <div onClick={() => canExpand && setExpandedMember(isExpanded ? null : m.id)}
                     style={{ display:'flex',alignItems:'center',gap:13,padding:'13px 15px',cursor:canExpand?'pointer':'default' }}>
                     <div style={{ width:40,height:40,borderRadius:'50%',flexShrink:0,display:'flex',alignItems:'center',justifyContent:'center',fontSize:16,fontWeight:700,color:'#fff',background:`linear-gradient(135deg, ${g1}, ${g2})` }}>
                       {(m.display_name||m.email||'?')[0].toUpperCase()}
                     </div>
                     <div style={{ flex:1,minWidth:0 }}>
-                      <div style={{ fontSize:13,fontWeight:600,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap',color:'#EEEEF8' }}>
+                      <div style={{ fontSize:13,fontWeight:600,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap',color:'#EDEDFF' }}>
                         {m.display_name||m.email}
-                        {isSelf && <span style={{ fontSize:10,background:'#161625',color:'#55556A',borderRadius:4,padding:'1px 5px',marginLeft:6,fontWeight:500 }}>you</span>}
+                        {isSelf && <span style={{ fontSize:10,background:'#161625',color:'#7A7AAA',borderRadius:4,padding:'1px 5px',marginLeft:6,fontWeight:500 }}>you</span>}
                       </div>
-                      <div style={{ fontSize:11,color:'#55556A',marginTop:2,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap' }}>
-                        {m.username ? `@${m.username}` : m.email}
+                      <div style={{ fontSize:11,color:'#7A7AAA',marginTop:2,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap' }}>
+                        {m.email}
                       </div>
                     </div>
                     <div style={{ display:'flex',alignItems:'center',gap:6,flexShrink:0 }}>
                       <RoleBadge role={mRole} />
                       {canExpand && (
-                        <span style={{ fontSize:14,color:'#55556A',display:'inline-block',transform:isExpanded?'rotate(90deg)':'rotate(0deg)',transition:'transform .2s',lineHeight:1 }}>&#8250;</span>
+                        <span style={{ fontSize:14,color:'#7A7AAA',display:'inline-block',transform:isExpanded?'rotate(90deg)':'rotate(0deg)',transition:'transform .2s',lineHeight:1 }}>&#8250;</span>
                       )}
                     </div>
                   </div>
                   {isExpanded && (
-                    <div style={{ padding:'14px 15px 16px',borderTop:'1px solid #1E1E32',background:'#161625' }}>
-                      <div style={{ fontSize:11,fontWeight:700,color:'#55556A',textTransform:'uppercase',letterSpacing:.5,marginBottom:10 }}>Change role</div>
+                    <div style={{ padding:'14px 15px 16px',borderTop:'1px solid rgba(255,255,255,.07)',background:'#161625' }}>
+                      <div style={{ fontSize:11,fontWeight:700,color:'#7A7AAA',textTransform:'uppercase',letterSpacing:.5,marginBottom:10 }}>Change role</div>
                       <div style={{ display:'grid',gridTemplateColumns:'1fr 1fr',gap:7,marginBottom:14 }}>
                         {['read','upload','full','admin'].map(r => (
                           <button key={r} onClick={() => handleChangeRole(m.id, r)}
                             style={{ padding:'9px 8px',fontSize:12,fontWeight:600,borderRadius:9,cursor:'pointer',textAlign:'center',
-                                      border: m.role===r ? '2px solid #5B5EF4' : '1px solid #1E1E32',
-                                      background: m.role===r ? 'rgba(91,94,244,.12)' : '#11111E',
-                                      color: m.role===r ? '#5B5EF4' : '#8888AA' }}>
+                                      border: m.role===r ? '2px solid #6366F1' : '1px solid rgba(255,255,255,.07)',
+                                      background: m.role===r ? 'rgba(99,102,241,.12)' : '#111130',
+                                      color: m.role===r ? '#6366F1' : '#8888AA' }}>
                             {ROLE_LABELS[r]}
                           </button>
                         ))}
                       </div>
                       {confirmRemove?.id === m.id ? (
                         <div style={{ background:'rgba(226,75,74,.08)',borderRadius:9,padding:'12px 13px',border:'1px solid rgba(226,75,74,.2)' }}>
-                          <div style={{ fontSize:12,color:'#EEEEF8',marginBottom:10,lineHeight:1.5 }}>
+                          <div style={{ fontSize:12,color:'#EDEDFF',marginBottom:10,lineHeight:1.5 }}>
                             Remove <strong>{confirmRemove.name}</strong> from this workspace?
                           </div>
                           <div style={{ display:'flex',gap:6 }}>
@@ -535,10 +591,10 @@ function ManagePanel({ teamId, data, currentUserId, myRole, onClose, onRefresh, 
         </div>
         {pendingInvites.length > 0 && (
           <div style={{ padding:'20px 22px 0' }}>
-            <div style={{ fontSize:13,fontWeight:700,color:'#EEEEF8',marginBottom:12 }}>Pending invites</div>
+            <div style={{ fontSize:13,fontWeight:700,color:'#EDEDFF',marginBottom:12 }}>Pending invites</div>
             <div style={{ display:'flex',flexDirection:'column',gap:6 }}>
               {pendingInvites.map(inv => (
-                <div key={inv.id} style={{ background:'#11111E',borderRadius:10,border:'1px solid #1E1E32',padding:'11px 14px',display:'flex',alignItems:'center',gap:11 }}>
+                <div key={inv.id} style={{ background:'#111130',borderRadius:10,border:'1px solid rgba(255,255,255,.07)',padding:'11px 14px',display:'flex',alignItems:'center',gap:11 }}>
                   <div style={{ width:34,height:34,borderRadius:'50%',background:'rgba(245,158,11,.1)',border:'1px solid rgba(245,158,11,.25)',display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0 }}>
                     <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
                       <rect x="1" y="3.5" width="14" height="9" rx="1.5" stroke="#F59E0B" strokeWidth="1.2"/>
@@ -546,8 +602,8 @@ function ManagePanel({ teamId, data, currentUserId, myRole, onClose, onRefresh, 
                     </svg>
                   </div>
                   <div style={{ flex:1,minWidth:0 }}>
-                    <div style={{ fontSize:12,fontWeight:600,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap',color:'#EEEEF8' }}>{inv.invited_email}</div>
-                    <div style={{ fontSize:11,color:'#55556A',marginTop:2 }}>
+                    <div style={{ fontSize:12,fontWeight:600,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap',color:'#EDEDFF' }}>{inv.invited_email}</div>
+                    <div style={{ fontSize:11,color:'#7A7AAA',marginTop:2 }}>
                       Expires {new Date(inv.expires_at).toLocaleDateString('en-IN',{ month:'short',day:'numeric' })}
                     </div>
                   </div>
@@ -558,7 +614,7 @@ function ManagePanel({ teamId, data, currentUserId, myRole, onClose, onRefresh, 
           </div>
         )}
         <div style={{ padding:'24px 22px 0' }}>
-          <div style={{ borderTop:'1px solid #1E1E32',paddingTop:20 }}>
+          <div style={{ borderTop:'1px solid rgba(255,255,255,.07)',paddingTop:20 }}>
             {!dangerAction ? (
               isOwner ? (
                 <button onClick={() => setDangerAction('dissolve')}
@@ -567,7 +623,7 @@ function ManagePanel({ teamId, data, currentUserId, myRole, onClose, onRefresh, 
                 </button>
               ) : (
                 <button onClick={() => setDangerAction('leave')}
-                  style={{ width:'100%',padding:'11px',fontSize:13,fontWeight:600,borderRadius:9,cursor:'pointer',background:'none',border:'1px solid #1E1E32',color:'#8888AA' }}>
+                  style={{ width:'100%',padding:'11px',fontSize:13,fontWeight:600,borderRadius:9,cursor:'pointer',background:'none',border:'1px solid rgba(255,255,255,.07)',color:'#8888AA' }}>
                   Leave workspace
                 </button>
               )
@@ -576,7 +632,7 @@ function ManagePanel({ teamId, data, currentUserId, myRole, onClose, onRefresh, 
                 <div style={{ fontWeight:700,fontSize:14,color:'#E24B4A',marginBottom:6 }}>Dissolve workspace?</div>
                 <div style={{ fontSize:13,color:'#8888AA',marginBottom:16,lineHeight:1.6 }}>
                   All {members.length} member{members.length!==1?'s':''} immediately lose access.
-                  Files are not deleted but become inaccessible. <strong style={{ color:'#EEEEF8' }}>Cannot be undone.</strong>
+                  All files are <strong style={{ color:'#EDEDFF' }}>permanently deleted</strong>. Only the owner can dissolve a workspace. <strong style={{ color:'#EDEDFF' }}>Cannot be undone.</strong>
                 </div>
                 <div style={{ display:'flex',gap:8 }}>
                   <button onClick={() => setDangerAction(null)} style={btn('ghost',true)}>Cancel</button>
@@ -585,7 +641,7 @@ function ManagePanel({ teamId, data, currentUserId, myRole, onClose, onRefresh, 
               </div>
             ) : (
               <div style={{ background:'rgba(226,75,74,.08)',borderRadius:12,padding:18,border:'1px solid rgba(226,75,74,.2)' }}>
-                <div style={{ fontWeight:700,fontSize:14,color:'#EEEEF8',marginBottom:6 }}>Leave workspace?</div>
+                <div style={{ fontWeight:700,fontSize:14,color:'#EDEDFF',marginBottom:6 }}>Leave workspace?</div>
                 <div style={{ fontSize:13,color:'#8888AA',marginBottom:16,lineHeight:1.6 }}>
                   You'll be removed immediately. The owner can re-invite you later.
                 </div>
@@ -685,7 +741,7 @@ function TeamWorkspace({ teamId, teamName, teamKeyB64, canUploadFiles, canManage
     try { await downloadZip(toDownload, dekBytes) }
     catch(e) { toast.error(e.message || 'Download failed') }
   }
-  function showConflict(name) { return new Promise(resolve => { conflictResolverRef.current = resolve; setConflict({ name }) }) }
+  function showConflict(name, existing) { return new Promise(resolve => { conflictResolverRef.current = resolve; setConflict({ name, existing }) }) }
   function resolveConflict(decision) {
     setConflict(null)
     if (conflictResolverRef.current) { conflictResolverRef.current(decision); conflictResolverRef.current = null }
@@ -719,7 +775,7 @@ function TeamWorkspace({ teamId, teamName, teamKeyB64, canUploadFiles, canManage
                          ...[...selectedFolders].map(id => api.deleteTeamFolder(teamId, id))])
       setFiles(prev => prev.filter(f => !selectedFiles.has(f.id)))
       setFolders(prev => prev.filter(f => !selectedFolders.has(f.id)))
-      toast.success(`Deleted ${totalSelected} item${totalSelected!==1?'s':''}`)
+      toast.success('Permanently deleted')
       clearSelection(); setShowDeleteConfirm(false)
     } catch(e) { toast.error(e.message) }
     setDeleting(false)
@@ -734,7 +790,7 @@ function TeamWorkspace({ teamId, teamName, teamKeyB64, canUploadFiles, canManage
     try {
       await api.deleteTeamFile(teamId, file.id)
       setFiles(prev => prev.filter(f => f.id !== file.id))
-      toast.success(`"${file.filename}" deleted`)
+      toast.success('Permanently deleted')
     } catch(e) { toast.error(e.message) }
   }
 
@@ -748,27 +804,32 @@ function TeamWorkspace({ teamId, teamName, teamKeyB64, canUploadFiles, canManage
       try {
         const existing = files.find(f => f.filename===item.name && !f._optimistic)
         let decision = 'new'
-        if (existing) decision = await showConflict(item.name)
-        if (decision === 'cancel') { setUploading(prev => prev.filter(u => u.id!==item.id)); continue }
+        if (existing) decision = await showConflict(item.name, existing)
+        // decision may be a string ('cancel','replace','version') or {decision:'keep',customName}
+        const decisionStr = decision?.decision || decision
+        if (decisionStr === 'cancel') { setUploading(prev => prev.filter(u => u.id!==item.id)); continue }
         let fileToUpload   = item.file
         let targetExisting = existing
-        if (decision === 'replace' && existing) {
+        if (decisionStr === 'replace' && existing) {
           await api.deleteTeamFile(teamId, existing.id)
           setFiles(prev => prev.filter(f => f.id!==existing.id))
           targetExisting = null
         }
-        if (decision === 'keep') {
-          const dotIdx = item.name.lastIndexOf('.')
-          const base   = dotIdx>=0 ? item.name.slice(0,dotIdx) : item.name
-          const ext    = dotIdx>=0 ? item.name.slice(dotIdx) : ''
-          let n = 2
-          while (files.some(f => f.filename===`${base} (${n})${ext}`)) n++
-          fileToUpload = new File([item.file],`${base} (${n})${ext}`,{ type:item.file.type })
+        if (decisionStr === 'keep') {
+          const newName = decision?.customName || (() => {
+            const dotIdx = item.name.lastIndexOf('.')
+            const base   = dotIdx>=0 ? item.name.slice(0,dotIdx) : item.name
+            const ext    = dotIdx>=0 ? item.name.slice(dotIdx) : ''
+            let n = 2
+            while (files.some(f => f.filename===`${base} (${n})${ext}`)) n++
+            return `${base} (${n})${ext}`
+          })()
+          fileToUpload = new File([item.file], newName, { type:item.file.type })
           setUploading(prev => prev.map(u => u.id===item.id ? { ...u, name:fileToUpload.name } : u))
           targetExisting = null
         }
-        const isVersion = decision === 'version'
-        const skipDedup = isVersion || decision==='keep' || decision==='replace'
+        const isVersion = decisionStr === 'version'
+        const skipDedup = isVersion || decisionStr==='keep' || decisionStr==='replace'
         let thumbData = null
         try {
           let rawThumb = null
@@ -813,13 +874,13 @@ function TeamWorkspace({ teamId, teamName, teamKeyB64, canUploadFiles, canManage
 
   return (
     <div>
-      <div style={{ padding:'10px 40px',margin:'-24px -24px 0 -24px',borderBottom:'1px solid #1E1E32',display:'flex',alignItems:'center',gap:8,flexWrap:'wrap',background:'#07070D',position:'sticky',top:-24,zIndex:10 }}>
+      <div style={{ padding:'10px 40px',margin:'-24px -24px 0 -24px',borderBottom:'1px solid rgba(255,255,255,.07)',display:'flex',alignItems:'center',gap:8,flexWrap:'wrap',background:'#08081A',position:'sticky',top:-24,zIndex:10 }}>
         <button onClick={onBack} style={{ background:'none',border:'none',cursor:'pointer',fontSize:18,color:'#8888AA',padding:'0 4px' }}>&larr;</button>
-        <span onClick={() => navTo(-1)} style={{ fontSize:15,fontWeight:700,cursor:'pointer',color:folderId?'#5B5EF4':'#EEEEF8' }}>{teamName}</span>
+        <span onClick={() => navTo(-1)} style={{ fontSize:15,fontWeight:700,cursor:'pointer',color:folderId?'#6366F1':'#EDEDFF' }}>{teamName}</span>
         {folderPath.map((seg, i) => (
           <React.Fragment key={seg.id}>
-            <span style={{ color:'#1E1E32' }}>/</span>
-            <span onClick={() => navTo(i)} style={{ fontSize:14,fontWeight:600,cursor:i<folderPath.length-1?'pointer':'default',color:i<folderPath.length-1?'#5B5EF4':'#EEEEF8' }}>{seg.name}</span>
+            <span style={{ color:'rgba(255,255,255,.07)' }}>/</span>
+            <span onClick={() => navTo(i)} style={{ fontSize:14,fontWeight:600,cursor:i<folderPath.length-1?'pointer':'default',color:i<folderPath.length-1?'#6366F1':'#EDEDFF' }}>{seg.name}</span>
           </React.Fragment>
         ))}
         <div style={{ marginLeft:'auto',display:'flex',gap:6,alignItems:'center' }}>
@@ -831,27 +892,14 @@ function TeamWorkspace({ teamId, teamName, teamKeyB64, canUploadFiles, canManage
           )}
           <input ref={fileInputRef} type="file" multiple style={{ display:'none' }} onChange={handleFileSelect} />
           <button onClick={() => setShowManage(v => !v)}
-            style={{ ...btn('ghost',true), background:showManage?'rgba(91,94,244,.12)':'#161625', color:showManage?'#5B5EF4':'#8888AA' }}>
+            style={{ ...btn('ghost',true), background:showManage?'rgba(99,102,241,.12)':'#161625', color:showManage?'#6366F1':'#8888AA' }}>
             &#9881; Manage
           </button>
         </div>
       </div>
       <div style={{ display:'flex',alignItems:'flex-start' }}>
         <div style={{ flex:1,padding:'16px 18px',minWidth:0 }}>
-          <div style={{ background:'rgba(0,194,124,.08)',border:'1px solid rgba(0,194,124,.2)',borderRadius:8,padding:'7px 12px',marginBottom:14,fontSize:12,color:'#00C27C',display:'flex',alignItems:'center',gap:6 }}>
-            Zero-knowledge &middot; End-to-end encrypted &middot; decrypted locally
-          </div>
-          {uploading.filter(u => !u.done&&!u.error).map(u => (
-            <div key={u.id} style={{ background:'#161625',border:'1px solid #1E1E32',borderRadius:8,padding:'8px 12px',marginBottom:8,display:'flex',alignItems:'center',gap:10 }}>
-              <div style={{ flex:1 }}>
-                <div style={{ fontSize:13,fontWeight:600,marginBottom:4,color:'#EEEEF8' }}>{u.name}</div>
-                <div style={{ height:4,background:'#1E1E32',borderRadius:2 }}>
-                  <div style={{ width:`${u.progress}%`,height:'100%',background:'#5B5EF4',borderRadius:2,transition:'width .2s' }} />
-                </div>
-              </div>
-              <span style={{ fontSize:12,color:'#8888AA',flexShrink:0 }}>{u.progress}%</span>
-            </div>
-          ))}
+
           <FileGrid
             files={files.map(f => ({
               ...f,
@@ -873,7 +921,7 @@ function TeamWorkspace({ teamId, teamName, teamKeyB64, canUploadFiles, canManage
           />
         </div>
         {showManage && data && !isMobile && (
-          <div style={{ width:380,flexShrink:0,borderLeft:'1px solid #1E1E32',alignSelf:'stretch',
+          <div style={{ width:380,flexShrink:0,borderLeft:'1px solid rgba(255,255,255,.07)',alignSelf:'stretch',
                          display:'flex',flexDirection:'column',overflow:'hidden' }}>
             <ManagePanel teamId={teamId} data={data} currentUserId={currentUserId} myRole={myRole}
               onClose={() => setShowManage(false)} onRefresh={onRefreshData} onLeave={onLeave} onDissolve={onDissolve} />
@@ -881,26 +929,26 @@ function TeamWorkspace({ teamId, teamName, teamKeyB64, canUploadFiles, canManage
         )}
       </div>
       {showManage && data && isMobile && (
-        <div style={{ position:'fixed',inset:0,background:'rgba(7,7,13,.8)',zIndex:150 }}
+        <div style={{ position:'fixed',inset:0,background:'rgba(8,8,26,.8)',zIndex:150 }}
           onClick={e => e.target===e.currentTarget && setShowManage(false)}>
-          <div style={{ position:'absolute',right:0,top:0,bottom:0,width:'min(360px,92vw)',background:'#0F0F1A',overflowY:'auto' }}>
+          <div style={{ position:'absolute',right:0,top:0,bottom:0,width:'min(360px,92vw)',background:'#0D0D22',overflowY:'auto' }}>
             <ManagePanel teamId={teamId} data={data} currentUserId={currentUserId} myRole={myRole}
               onClose={() => setShowManage(false)} onRefresh={onRefreshData} onLeave={onLeave} onDissolve={onDissolve} />
           </div>
         </div>
       )}
       {totalSelected > 0 && (
-        <div style={{ position:'fixed',bottom:28,left:'50%',transform:'translateX(-50%)',background:'#11111E',color:'#EEEEF8',borderRadius:14,padding:'12px 20px',display:'flex',alignItems:'center',gap:14,border:'1px solid #1E1E32',boxShadow:'0 8px 28px rgba(0,0,0,.5)',zIndex:120,whiteSpace:'nowrap' }}>
+        <div style={{ position:'fixed',bottom:28,left:'50%',transform:'translateX(-50%)',background:'#111130',color:'#EDEDFF',borderRadius:14,padding:'12px 20px',display:'flex',alignItems:'center',gap:14,border:'1px solid rgba(255,255,255,.07)',boxShadow:'0 8px 28px rgba(0,0,0,.5)',zIndex:120,whiteSpace:'nowrap' }}>
           <span style={{ fontSize:13,fontWeight:600 }}>{totalSelected} item{totalSelected!==1?'s':''} selected</span>
-          <button onClick={clearSelection} style={{ background:'rgba(136,136,170,.15)',color:'#8888AA',border:'1px solid #1E1E32',borderRadius:7,padding:'6px 12px',fontSize:12,cursor:'pointer',fontWeight:500 }}>Cancel</button>
+          <button onClick={clearSelection} style={{ background:'rgba(136,136,170,.15)',color:'#8888AA',border:'1px solid rgba(255,255,255,.07)',borderRadius:7,padding:'6px 12px',fontSize:12,cursor:'pointer',fontWeight:500 }}>Cancel</button>
           {selectedFiles.size > 0 && (
-            <button onClick={bulkDownloadFiles} style={{ background:'rgba(91,94,244,.15)',color:'#a5b4fc',border:'1px solid rgba(91,94,244,.3)',borderRadius:7,padding:'6px 12px',fontSize:12,cursor:'pointer',fontWeight:500 }}>
+            <button onClick={bulkDownloadFiles} style={{ background:'rgba(99,102,241,.15)',color:'#a5b4fc',border:'1px solid rgba(99,102,241,.3)',borderRadius:7,padding:'6px 12px',fontSize:12,cursor:'pointer',fontWeight:500 }}>
               ↓ Download
             </button>
           )}
           {canManageFiles && (
             <button onClick={() => setShowDeleteConfirm(true)} style={{ background:'#E24B4A',color:'#fff',border:'none',borderRadius:7,padding:'6px 16px',fontSize:12,cursor:'pointer',fontWeight:700 }}>
-              &#128465; Delete {totalSelected}
+              &#128465; Delete
             </button>
           )}
         </div>
@@ -911,7 +959,7 @@ function TeamWorkspace({ teamId, teamName, teamKeyB64, canUploadFiles, canManage
             <button onClick={() => setShowNewFolder(false)} style={btn('ghost',true)}>Cancel</button>
             <button onClick={handleCreateFolder} disabled={creatingFolder} style={btn('primary',true)}>{creatingFolder ? 'Creating…' : 'Create'}</button>
           </>}>
-          <input style={{ width:'100%',padding:'10px 12px',border:'1px solid #1E1E32',borderRadius:8,fontSize:14,outline:'none',boxSizing:'border-box',background:'#161625',color:'#EEEEF8' }}
+          <input style={{ width:'100%',padding:'10px 12px',border:'1px solid rgba(255,255,255,.07)',borderRadius:8,fontSize:14,outline:'none',boxSizing:'border-box',background:'#161625',color:'#EDEDFF' }}
             placeholder="Folder name" value={newFolderName} onChange={e => setNewFolderName(e.target.value)} onKeyDown={e => e.key==='Enter' && handleCreateFolder()} autoFocus />
         </Modal>
       )}
@@ -919,13 +967,10 @@ function TeamWorkspace({ teamId, teamName, teamKeyB64, canUploadFiles, canManage
         <Modal title="Delete items" onClose={() => setShowDeleteConfirm(false)}
           footer={<>
             <button onClick={() => setShowDeleteConfirm(false)} style={btn('ghost',true)}>Cancel</button>
-            <button onClick={handleBulkDelete} disabled={deleting} style={btn('danger',true)}>{deleting ? 'Deleting…' : `Delete ${totalSelected} item${totalSelected!==1?'s':''}`}</button>
+            <button onClick={handleBulkDelete} disabled={deleting} style={btn('danger',true)}>{deleting ? 'Deleting…' : 'Delete'}</button>
           </>}>
-          <div style={{ fontSize:13,color:'#EEEEF8',lineHeight:1.7 }}>
-            <p style={{ marginBottom:8 }}>You're about to permanently delete:</p>
-            {selectedFiles.size > 0 && <p style={{ margin:'0 0 4px',fontWeight:600 }}>&bull; {selectedFiles.size} file{selectedFiles.size!==1?'s':''}</p>}
-            {selectedFolders.size > 0 && <p style={{ margin:'0 0 4px',fontWeight:600 }}>&bull; {selectedFolders.size} folder{selectedFolders.size!==1?'s':''} (and all files inside)</p>}
-            <p style={{ marginTop:10,color:'#55556A',fontSize:12 }}>This action cannot be undone.</p>
+          <div style={{ fontSize:13,color:'#EDEDFF',lineHeight:1.7 }}>
+            <p style={{ marginBottom:8 }}>These files/folders will be permanently deleted. This cannot be undone.</p>
           </div>
         </Modal>
       )}
@@ -935,15 +980,16 @@ function TeamWorkspace({ teamId, teamName, teamKeyB64, canUploadFiles, canManage
             <button onClick={() => setConfirmFolderDelete(null)} style={btn('ghost',true)}>Cancel</button>
             <button onClick={() => handleFolderDelete(confirmFolderDelete)} style={btn('danger',true)}>Delete</button>
           </>}>
-          <div style={{ fontSize:13,color:'#EEEEF8',lineHeight:1.7 }}>
+          <div style={{ fontSize:13,color:'#EDEDFF',lineHeight:1.7 }}>
             <p>Delete folder <strong>"{confirmFolderDelete.name}"</strong>?</p>
-            <p style={{ color:'#55556A',fontSize:12,marginTop:8 }}>Files inside this folder will also be deleted. This cannot be undone.</p>
+            <p style={{ color:'#7A7AAA',fontSize:12,marginTop:8 }}>Files inside this folder will also be deleted. This cannot be undone.</p>
           </div>
         </Modal>
       )}
-      {conflict && <ConflictModal filename={conflict.name} onResolve={resolveConflict} onClose={() => resolveConflict('cancel')} />}
+      {conflict && <ConflictModal filename={conflict.name} existing={conflict.existing} onResolve={resolveConflict} />}
       {preview && <TeamPreviewModal file={preview} teamKeyB64={teamKeyB64} onClose={() => setPreview(null)} />}
       {versionsFile && <TeamVersionHistory teamId={teamId} file={versionsFile} teamKeyB64={teamKeyB64} onClose={() => setVersionsFile(null)} />}
+      <UploadProgressPanel uploads={uploading} />
     </div>
   )
 }
@@ -1026,10 +1072,10 @@ function TeamView({ teamId, currentUserId, onBack, onRefreshList }) {
   if (loading || unlocking) {
     return (
       <div style={{ display:'flex',alignItems:'center',justifyContent:'center',padding:80,flexDirection:'column',gap:12 }}>
-        <div style={{ width:32,height:32,border:'3px solid #1E1E32',borderTopColor:'#5B5EF4',borderRadius:'50%',animation:'spin .7s linear infinite' }}>
+        <div style={{ width:32,height:32,border:'3px solid rgba(255,255,255,.07)',borderTopColor:'#6366F1',borderRadius:'50%',animation:'spin .7s linear infinite' }}>
           <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
         </div>
-        <div style={{ color:'#55556A',fontSize:13 }}>{unlocking ? 'Unlocking workspace…' : 'Loading…'}</div>
+        <div style={{ color:'#7A7AAA',fontSize:13 }}>{unlocking ? 'Unlocking workspace…' : 'Loading…'}</div>
       </div>
     )
   }
@@ -1044,19 +1090,25 @@ function TeamView({ teamId, currentUserId, onBack, onRefreshList }) {
     const isEcdh     = data.team.key_salt === 'ecdh'
     const hasVaultKey= !!sessionStorage.getItem('dd_vault_private_key_pkcs8')
     return (
-      <div style={{ maxWidth:480,width:'100%',margin:'0 auto',paddingTop:40 }}>
+      <div style={{ width:'100%',paddingTop:40 }}>
         <button onClick={onBack} style={{ background:'none',border:'none',cursor:'pointer',fontSize:14,color:'#8888AA',marginBottom:24,display:'flex',alignItems:'center',gap:6 }}>
           &larr; Back to workspaces
         </button>
         <div style={{ ...card,textAlign:'center' }}>
-          <div style={{ marginBottom:16,display:'flex',justifyContent:'center' }}>
-            <svg width="48" height="48" viewBox="0 0 48 48" fill="none">
-              <rect x="8" y="22" width="32" height="22" rx="5" fill="rgba(91,94,244,.12)" stroke="#5B5EF4" strokeWidth="1.5"/>
-              <path d="M16 22V16a8 8 0 0 1 16 0v6" stroke="#5B5EF4" strokeWidth="1.5" strokeLinecap="round"/>
-              <circle cx="24" cy="33" r="3" fill="#5B5EF4"/>
-            </svg>
+          <div style={{ marginBottom:20,display:'flex',justifyContent:'center' }}>
+            <div style={{ width:72,height:72,borderRadius:20,
+                           background:'linear-gradient(145deg,rgba(99,102,241,0.22),rgba(99,102,241,0.07))',
+                           border:'1.5px solid rgba(99,102,241,0.45)',
+                           display:'flex',alignItems:'center',justifyContent:'center',
+                           boxShadow:'0 0 0 4px rgba(99,102,241,0.1),0 8px 32px rgba(99,102,241,0.3)' }}>
+              <svg width="40" height="40" viewBox="0 0 48 48" fill="none">
+                <rect x="8" y="24" width="32" height="19" rx="5" fill="#6366F1" fillOpacity=".22" stroke="#6366F1" strokeWidth="2"/>
+                <path d="M14 24V17A10 10 0 0 1 34 17V24" stroke="#6366F1" strokeWidth="2" strokeLinecap="round"/>
+                <circle cx="24" cy="34" r="4" fill="#6366F1"/>
+              </svg>
+            </div>
           </div>
-          <div style={{ fontWeight:700,fontSize:18,marginBottom:8,color:'#EEEEF8' }}>{data.team.name}</div>
+          <div style={{ fontWeight:700,fontSize:18,marginBottom:8,color:'#EDEDFF' }}>{data.team.name}</div>
           <div style={{ marginBottom:16 }}><RoleBadge role={myRole} /></div>
           <div style={{ fontSize:13,color:'#8888AA',marginBottom:20,lineHeight:1.6 }}>
             {isEcdh
@@ -1067,7 +1119,7 @@ function TeamView({ teamId, currentUserId, onBack, onRefreshList }) {
           </div>
           {!isEcdh && <button onClick={() => setShowPass(true)} style={btn('primary')}>Enter Passphrase</button>}
           {isEcdh && unlockError && (
-            <p style={{ fontSize:12,color:'#55556A',marginTop:4,lineHeight:1.5 }}>
+            <p style={{ fontSize:12,color:'#7A7AAA',marginTop:4,lineHeight:1.5 }}>
               New members need the owner to open the workspace first to receive their encrypted key automatically.
             </p>
           )}
@@ -1156,15 +1208,30 @@ export default function TeamsView({ currentUserId, onGoToVault }) {
   }
 
   return (
-    <div style={{ maxWidth:isMobile?'100%':640,width:'100%' }}>
+    <div style={{ width:'100%' }}>
       <div style={{ display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:8 }}>
-        <h2 style={{ fontSize:20,fontWeight:700,color:'#EEEEF8' }}>Workspace</h2>
+        <div style={{ display:'flex',alignItems:'center',gap:10 }}>
+          <div style={{ width:32,height:32,borderRadius:9,flexShrink:0,
+                         background:'linear-gradient(145deg,rgba(99,102,241,0.22),rgba(99,102,241,0.07))',
+                         border:'1.5px solid rgba(99,102,241,0.35)',
+                         display:'flex',alignItems:'center',justifyContent:'center',
+                         boxShadow:'0 0 0 2px rgba(99,102,241,0.08),0 2px 10px rgba(99,102,241,0.2)' }}>
+            <svg width={16} height={16} viewBox="0 0 24 24" fill="none">
+              <circle cx="9" cy="7" r="3" stroke="#6366F1" strokeWidth="1.4" fill="#6366F1" fillOpacity=".15"/>
+              <path d="M2 21c0-4 3-6 7-6s7 2 7 6" stroke="#6366F1" strokeWidth="1.4" strokeLinecap="round"/>
+              <circle cx="16.5" cy="6.5" r="2.5" stroke="#6366F1" strokeWidth="1.3" fill="#6366F1" fillOpacity=".1"/>
+              <path d="M17 15.5c3 .5 5.5 2.5 5.5 5.5" stroke="#6366F1" strokeWidth="1.3" strokeLinecap="round"/>
+            </svg>
+          </div>
+          <h2 style={{ fontSize:20,fontWeight:700,color:'#EDEDFF',margin:0 }}>Workspace</h2>
+        </div>
         <button onClick={() => { setNewName(''); setShowCreate(true) }} style={btn('primary')}>+ New Workspace</button>
       </div>
+      <div style={{ maxWidth:680 }}>
       <div style={{ fontSize:12,color:'#8888AA',marginBottom:18,display:'flex',alignItems:'center',gap:6,flexWrap:'wrap' }}>
-        <span style={{ background:'rgba(91,94,244,.08)',color:'#5B5EF4',border:'1px solid rgba(91,94,244,.2)',borderRadius:99,padding:'2px 8px',fontSize:11,fontWeight:600 }}>Zero-knowledge</span>
-        <span style={{ background:'rgba(91,94,244,.08)',color:'#5B5EF4',border:'1px solid rgba(91,94,244,.2)',borderRadius:99,padding:'2px 8px',fontSize:11,fontWeight:600 }}>End-to-end encrypted</span>
-        <span style={{ color:'#55556A' }}>&middot; Decrypted locally, never on our servers</span>
+        <span style={{ background:'rgba(99,102,241,.08)',color:'#6366F1',border:'1px solid rgba(99,102,241,.2)',borderRadius:99,padding:'2px 8px',fontSize:11,fontWeight:600 }}>Zero-knowledge</span>
+        <span style={{ background:'rgba(99,102,241,.08)',color:'#6366F1',border:'1px solid rgba(99,102,241,.2)',borderRadius:99,padding:'2px 8px',fontSize:11,fontWeight:600 }}>End-to-end encrypted</span>
+        <span style={{ color:'#7A7AAA' }}>&middot; Decrypted locally, never on our servers</span>
       </div>
 
       {invites.length > 0 && (
@@ -1172,7 +1239,7 @@ export default function TeamsView({ currentUserId, onGoToVault }) {
           <div style={{ fontWeight:600,fontSize:13,color:'#00C27C',marginBottom:10 }}>Workspace Invitations ({invites.length})</div>
           {invites.map(inv => (
             <div key={inv.id} style={{ display:'flex',alignItems:'center',gap:10,padding:'7px 0',borderBottom:'1px solid rgba(0,194,124,.15)',flexWrap:'wrap' }}>
-              <div style={{ flex:1,fontSize:13,color:'#EEEEF8' }}><strong>{inv.inviter_name||'Someone'}</strong> invited you to <strong>{inv.team_name}</strong></div>
+              <div style={{ flex:1,fontSize:13,color:'#EDEDFF' }}><strong>{inv.inviter_name||'Someone'}</strong> invited you to <strong>{inv.team_name}</strong></div>
               <button onClick={() => handleAcceptInvite(inv.token, inv.team_name)} style={btn('success',true)}>Accept</button>
             </div>
           ))}
@@ -1180,18 +1247,24 @@ export default function TeamsView({ currentUserId, onGoToVault }) {
       )}
 
       {loading ? (
-        <div style={{ textAlign:'center',padding:60,color:'#55556A' }}>Loading&hellip;</div>
+        <div style={{ textAlign:'center',padding:60,color:'#7A7AAA' }}>Loading&hellip;</div>
       ) : teams.length === 0 ? (
         <div style={{ textAlign:'center',padding:'60px 20px' }}>
-          <div style={{ marginBottom:12,display:'flex',justifyContent:'center' }}>
-            <svg width="48" height="48" viewBox="0 0 48 48" fill="none">
-              <circle cx="18" cy="16" r="7" fill="rgba(91,94,244,.1)" stroke="#5B5EF4" strokeWidth="1.5"/>
-              <path d="M4 40c0-7.732 6.268-14 14-14s14 6.268 14 14" stroke="#5B5EF4" strokeWidth="1.5" strokeLinecap="round"/>
-              <circle cx="34" cy="18" r="5" fill="rgba(91,94,244,.1)" stroke="#5B5EF4" strokeWidth="1.5"/>
-              <path d="M37 36c3.866 0 7-3.134 7-7" stroke="#5B5EF4" strokeWidth="1.5" strokeLinecap="round"/>
-            </svg>
+          <div style={{ marginBottom:16,display:'flex',justifyContent:'center' }}>
+            <div style={{ width:72,height:72,borderRadius:20,
+                           background:'linear-gradient(145deg,rgba(99,102,241,0.22),rgba(99,102,241,0.07))',
+                           border:'1.5px solid rgba(99,102,241,0.45)',
+                           display:'flex',alignItems:'center',justifyContent:'center',
+                           boxShadow:'0 0 0 4px rgba(99,102,241,0.1),0 8px 32px rgba(99,102,241,0.3)' }}>
+              <svg width="40" height="40" viewBox="0 0 48 48" fill="none">
+                <circle cx="17" cy="15" r="7" fill="#6366F1" fillOpacity=".18" stroke="#6366F1" strokeWidth="2"/>
+                <path d="M3 44c0-8.5 5.5-13 14-13s14 4.5 14 13" stroke="#6366F1" strokeWidth="2" strokeLinecap="round"/>
+                <circle cx="34" cy="17" r="5.5" fill="#6366F1" fillOpacity=".12" stroke="#6366F1" strokeWidth="1.8"/>
+                <path d="M35.5 27.5c7 1.5 11 6 11 16.5" stroke="#6366F1" strokeWidth="1.8" strokeLinecap="round"/>
+              </svg>
+            </div>
           </div>
-          <div style={{ fontSize:16,fontWeight:600,marginBottom:6,color:'#EEEEF8' }}>No workspaces yet</div>
+          <div style={{ fontSize:16,fontWeight:600,marginBottom:6,color:'#EDEDFF' }}>No workspaces yet</div>
           <div style={{ fontSize:14,color:'#8888AA',marginBottom:20 }}>Create a workspace to collaborate with end-to-end encrypted shared files. Your Vault key protects all team files.</div>
           <button onClick={() => { setNewName(''); setShowCreate(true) }} style={btn('primary')}>Create your first workspace</button>
         </div>
@@ -1202,11 +1275,11 @@ export default function TeamsView({ currentUserId, onGoToVault }) {
               style={{ ...card,cursor:'pointer',display:'flex',alignItems:'center',gap:14 }}
               onMouseEnter={e => e.currentTarget.style.boxShadow='0 2px 12px rgba(0,0,0,.3)'}
               onMouseLeave={e => e.currentTarget.style.boxShadow=''}>
-              <div style={{ width:40,height:40,borderRadius:10,background:'rgba(91,94,244,.12)',display:'flex',alignItems:'center',justifyContent:'center',fontSize:16,fontWeight:700,color:'#5B5EF4',flexShrink:0 }}>
+              <div style={{ width:40,height:40,borderRadius:10,background:'rgba(99,102,241,.12)',display:'flex',alignItems:'center',justifyContent:'center',fontSize:16,fontWeight:700,color:'#6366F1',flexShrink:0 }}>
                 {t.name[0].toUpperCase()}
               </div>
               <div style={{ flex:1,minWidth:0 }}>
-                <div style={{ fontWeight:600,fontSize:14,color:'#EEEEF8' }}>{t.name}</div>
+                <div style={{ fontWeight:600,fontSize:14,color:'#EDEDFF' }}>{t.name}</div>
                 <div style={{ fontSize:12,color:'#8888AA',display:'flex',alignItems:'center',gap:4 }}>
                   {t.member_count||1} member{t.member_count!==1?'s':''} &middot;{' '}
                   <svg width="10" height="10" viewBox="0 0 12 12" fill="none">
@@ -1217,11 +1290,12 @@ export default function TeamsView({ currentUserId, onGoToVault }) {
                 </div>
               </div>
               <RoleBadge role={t.role==='owner'?'owner':t.role} />
-              <span style={{ color:'#55556A',fontSize:18 }}>&#8250;</span>
+              <span style={{ color:'#7A7AAA',fontSize:18 }}>&#8250;</span>
             </div>
           ))}
         </div>
       )}
+      </div>
 
       {showCreate && (
         <Modal title="New Encrypted Workspace" onClose={() => setShowCreate(false)}
@@ -1234,7 +1308,7 @@ export default function TeamsView({ currentUserId, onGoToVault }) {
           <p style={{ fontSize:13,color:'#8888AA',marginBottom:14 }}>
             Give your workspace a name. Files are end-to-end encrypted using your Vault key &mdash; no passphrase to set or share.
           </p>
-          <input style={{ width:'100%',padding:'10px 12px',border:'1px solid #1E1E32',borderRadius:8,fontSize:14,outline:'none',boxSizing:'border-box',background:'#161625',color:'#EEEEF8' }}
+          <input style={{ width:'100%',padding:'10px 12px',border:'1px solid rgba(255,255,255,.07)',borderRadius:8,fontSize:14,outline:'none',boxSizing:'border-box',background:'#161625',color:'#EDEDFF' }}
             placeholder="e.g. Design Team" value={newName} onChange={e => setNewName(e.target.value)} onKeyDown={e => e.key==='Enter' && handleCreateTeam()} autoFocus />
         </Modal>
       )}

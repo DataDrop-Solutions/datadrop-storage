@@ -180,12 +180,12 @@ test.describe('Vault security isolation', () => {
   })
 
   test('Vault nav is present and labelled correctly', async ({ page }) => {
-    const vaultNav = page.locator('button:has-text("Zero Knowledge Vault"), [data-key="vault"]')
+    const vaultNav = page.locator('button:has-text("Vault"), [data-key="vault"]')
     await expect(vaultNav).toBeVisible()
   })
 
   test('Vault section does not expose any file content without PIN', async ({ page }) => {
-    const vaultNav = page.locator('button:has-text("Zero Knowledge Vault"), [data-key="vault"]').first()
+    const vaultNav = page.locator('button:has-text("Vault"), [data-key="vault"]').first()
     await vaultNav.click()
     await page.waitForTimeout(3000)
 

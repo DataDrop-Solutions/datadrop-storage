@@ -92,16 +92,15 @@ async function cleanupTrash(env) {
 
   for (const file of expiredFiles) {
     try {
+      // Soft-delete and queue via canonical pipeline (queue first, consumer does B2 then D1)
+      await env.DB.prepare('UPDATE files SET accessible = 0, b2_delete_queued = 1 WHERE id = ?').bind(file.id).run();
       await env.QUEUE.send({
         type: 'DELETE_FILE_FROM_BUCKET',
         fileId: file.id,
-        userId: file.user_id,
         storageKey: file.storage_key,
         bucket: file.bucket,
-        sizeBytes: file.size_bytes,
+        deleteFromD1: true,
       });
-
-      await env.DB.prepare('DELETE FROM files WHERE id = ?').bind(file.id).run();
     } catch (_) {}
   }
 }

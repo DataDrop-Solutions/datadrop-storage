@@ -10,7 +10,7 @@
 // POST /shares/transfer     → ownership transfer
 // ============================================================
 
-import { corsResponse, handleOptions, validateSession, newId, sendEmail, checkRateLimit, isValidId, checkApiRateLimit, calcStorageCost, decrementStorageBytes, incrementStorageBytes, buildAccumulationBatch } from '../shared/utils.js';
+import { corsResponse, handleOptions, validateSession, newId, sendEmail, checkRateLimit, isValidId, calcStorageCost, decrementStorageBytes, incrementStorageBytes, buildAccumulationBatch, safeCompare } from '../shared/utils.js';
 
 export default {
   async fetch(request, env) {
@@ -18,10 +18,6 @@ export default {
 
     const session = await validateSession(request, env);
     if (!session) return corsResponse({ error: 'Unauthorized' }, 401);
-
-    if (!(await checkApiRateLimit(env, session.userId))) {
-      return corsResponse({ error: 'Too many requests' }, 429);
-    }
 
     const url  = new URL(request.url);
     const path = url.pathname.replace('/shares', '');
@@ -41,6 +37,7 @@ export default {
       // POST /shares/:id/accept-move  — recipient moves file into their own account
       if (parts[0] && parts[1] === 'accept-move' && request.method === 'POST') {
         if (!isValidId(parts[0])) return corsResponse({ error: 'Invalid ID' }, 400);
+        if (session.status === 'read_only') return corsResponse({ error: 'Cannot accept new shares during payment recovery — resolve your invoice first.', code: 'PAYMENT_RECOVERY' }, 402);
         return await acceptMove(parts[0], env, session);
       }
       // POST /shares/:id/confirm-receipt  — recipient confirms receipt (triggers delete-on-confirm)
@@ -74,6 +71,11 @@ export default {
 
 // ---------- Create share ----------
 async function createShare(request, env, session) {
+  // Block sharing during payment recovery
+  if (session.status === 'read_only') {
+    return corsResponse({ error: 'Account in payment recovery mode — sharing is paused. Please resolve your outstanding invoice.', code: 'PAYMENT_RECOVERY' }, 402);
+  }
+
   // Rate limit: 50 shares per user per hour
   const allowed = await checkRateLimit(env, `rate_share:${session.userId}`, 50, 3600);
   if (!allowed) return corsResponse({ error: 'Too many shares. Try again later.' }, 429);
@@ -87,6 +89,7 @@ async function createShare(request, env, session) {
     watermark = false,
     deleteAfterDays,
     deleteOnConfirm = false,
+    passwordHash = null,
   } = await request.json();
 
   if (!fileId && !folderId) return corsResponse({ error: 'fileId or folderId required' }, 400);
@@ -148,9 +151,9 @@ async function createShare(request, env, session) {
       recipient_email, recipient_user_id, invite_link_token,
       can_view, can_download, can_save,
       expires_at, max_views, watermark,
-      delete_after_days, delete_on_confirm, status,
+      delete_after_days, delete_on_confirm, password_hash, status,
       created_at, updated_at
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'active', ?, ?)
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'active', ?, ?)
   `).bind(
     shareId,
     fileId    || null,
@@ -167,6 +170,7 @@ async function createShare(request, env, session) {
     watermark ? 1 : 0,
     deleteAfterDays  || null,
     deleteOnConfirm ? 1 : 0,
+    passwordHash || null,
     Date.now(), Date.now(),
   ).run();
 
@@ -213,12 +217,27 @@ async function claimInvite(token, env, session, request) {
     return corsResponse({ error: 'Invite link has expired' }, 410);
   }
 
-  // Lock the invite to this user
-  await env.DB.prepare(`
+  // Password-protected invite links
+  if (share.password_hash) {
+    let body = {};
+    try { body = await request.clone().json(); } catch (_) {}
+    const { passwordHash } = body;
+    if (!passwordHash) return corsResponse({ error: 'Password required', passwordRequired: true }, 401);
+    if (!safeCompare(share.password_hash, passwordHash)) {
+      return corsResponse({ error: 'Incorrect password', passwordRequired: true }, 401);
+    }
+  }
+
+  // Lock the invite to this user atomically — check changes to detect races (M-5)
+  const claimResult = await env.DB.prepare(`
     UPDATE shares
     SET recipient_user_id = ?, invite_claimed = 1, updated_at = ?
     WHERE id = ? AND invite_claimed = 0
   `).bind(session.userId, Date.now(), share.id).run();
+
+  if (!claimResult.meta?.changes) {
+    return corsResponse({ error: 'Invite was already claimed by another user' }, 409);
+  }
 
   return corsResponse({ shareId: share.id, fileId: share.file_id, folderId: share.folder_id });
 }
@@ -362,8 +381,27 @@ async function getSharedFolderFiles(shareId, url, env, session) {
     return corsResponse({ error: 'Share expired' }, 403);
   }
 
-  // subFolderId: browse inside a subfolder of the shared folder
-  const subFolderId = url.searchParams.get('folder') || share.folder_id;
+  // subFolderId: browse inside a subfolder of the shared folder.
+  // Walk the parent chain to verify any requested subFolder is actually a descendant of
+  // share.folder_id — without this, any arbitrary folder_id could be passed (CRITICAL-2 / IDOR).
+  const subFolderParam = url.searchParams.get('folder');
+  let subFolderId = share.folder_id;
+
+  if (subFolderParam && subFolderParam !== share.folder_id) {
+    let cursor = subFolderParam;
+    let authorized = false;
+    for (let depth = 0; depth < 20; depth++) {
+      if (!cursor) break;
+      if (cursor === share.folder_id) { authorized = true; break; }
+      const parentRow = await env.DB.prepare(
+        'SELECT parent_id FROM folders WHERE id = ? AND user_id = ?'
+      ).bind(cursor, share.owner_id).first();
+      if (!parentRow) break;
+      cursor = parentRow.parent_id;
+    }
+    if (!authorized) return corsResponse({ error: 'Access denied' }, 403);
+    subFolderId = subFolderParam;
+  }
 
   const [filesRes, foldersRes] = await Promise.all([
     env.DB.prepare(
@@ -425,11 +463,12 @@ async function acceptMove(shareId, env, session) {
 
   const now = Date.now();
 
-  // Transfer ownership: update user_id on the file record
-  await env.DB.prepare(
-    'UPDATE files SET user_id = ?, updated_at = ? WHERE id = ?'
-  ).bind(session.userId, now, file.id).run();
-
+  // Transfer ownership atomically; update byte-second accumulation for both parties (HIGH-6)
+  await env.DB.batch([
+    ...buildAccumulationBatch(share.owner_id, env.DB, -(file.size_bytes || 0)),
+    ...buildAccumulationBatch(session.userId, env.DB, file.size_bytes || 0),
+    env.DB.prepare('UPDATE files SET user_id = ?, updated_at = ? WHERE id = ?').bind(session.userId, now, file.id),
+  ]);
   await decrementStorageBytes(env, share.owner_id, file.size_bytes || 0);
   await incrementStorageBytes(env, session.userId, file.size_bytes || 0);
 
@@ -456,18 +495,25 @@ async function confirmReceipt(shareId, env, session) {
 
   const now = Date.now();
 
-  // If delete_on_confirm, soft-delete the file from owner's account
+  // If delete_on_confirm, permanently delete the file from owner's account via canonical pipeline.
   if (share.delete_on_confirm) {
     const file = await env.DB.prepare(
-      'SELECT id, user_id, size_bytes FROM files WHERE id = ? AND deleted_at IS NULL'
+      'SELECT id, user_id, size_bytes, storage_key, bucket FROM files WHERE id = ? AND deleted_at IS NULL'
     ).bind(share.file_id).first();
 
     if (file && file.user_id === share.owner_id) {
-      await env.DB.prepare(
-        'UPDATE files SET deleted_at = ?, updated_at = ? WHERE id = ?'
-      ).bind(now, now, file.id).run();
-
+      // Purge crypto material immediately
+      await env.DB.prepare('DELETE FROM file_keys WHERE file_id = ?').bind(file.id).run();
+      // Decrement billing and soft-delete atomically (HIGH-7)
+      await env.DB.batch([
+        ...buildAccumulationBatch(share.owner_id, env.DB, -(file.size_bytes || 0)),
+        env.DB.prepare(
+          'UPDATE files SET deleted_at = COALESCE(deleted_at, ?), accessible = 0, b2_delete_queued = 1, updated_at = ? WHERE id = ?'
+        ).bind(now, now, file.id),
+      ]);
       await decrementStorageBytes(env, share.owner_id, file.size_bytes || 0);
+      // Queue B2 deletion then D1 hard-delete via canonical pipeline
+      await env.QUEUE.send({ type: 'DELETE_FILE_FROM_BUCKET', fileId: file.id, storageKey: file.storage_key, bucket: file.bucket, deleteFromD1: true });
     }
   }
 

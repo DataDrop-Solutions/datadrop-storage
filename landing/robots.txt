@@ -1,0 +1,7 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://datadrop.co.in/sitemap.xml
+
+# Disallow app subdomain crawling from landing robots (handled by app.datadrop.co.in robots)
+# This file covers datadrop.co.in only

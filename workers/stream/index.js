@@ -43,7 +43,7 @@ async function issueToken(request, env, fileId) {
 
   // Verify user has access to this file
   const file = await env.DB.prepare(
-    `SELECT f.id, f.user_id, f.mime_type, f.bucket, f.storage_key,
+    `SELECT f.id, f.user_id, f.team_id, f.mime_type, f.bucket, f.storage_key,
             f.is_vault, f.accessible,
             s.id as share_id, s.can_view, s.expires_at
      FROM files f
@@ -57,9 +57,19 @@ async function issueToken(request, env, fileId) {
   if (file.is_vault) return corsResponse({ error: 'Access denied' }, 403);
 
   const isOwner = file.user_id === session.userId;
-  if (!isOwner && !file.share_id) return corsResponse({ error: 'Access denied' }, 403);
-  if (!isOwner && !file.can_view) return corsResponse({ error: 'Access denied' }, 403);
-  if (!isOwner && file.expires_at && Date.now() > file.expires_at) {
+
+  // Team workspace files: uploader's user_id is the creator, not all members — check membership (HIGH-10)
+  let isTeamMember = false;
+  if (!isOwner && file.team_id) {
+    const tmem = await env.DB.prepare(
+      "SELECT 1 FROM team_members WHERE team_id = ? AND user_id = ? AND status = 'active'"
+    ).bind(file.team_id, session.userId).first();
+    isTeamMember = !!tmem;
+  }
+
+  if (!isOwner && !isTeamMember && !file.share_id) return corsResponse({ error: 'Access denied' }, 403);
+  if (!isOwner && !isTeamMember && !file.can_view) return corsResponse({ error: 'Access denied' }, 403);
+  if (!isOwner && !isTeamMember && file.expires_at && Date.now() > file.expires_at) {
     return corsResponse({ error: 'Share expired' }, 403);
   }
 
@@ -119,7 +129,9 @@ async function streamFile(request, env, fileId, url) {
       .bind(Date.now(), fileId).run()
   );
 
-  const b2Bucket = file.bucket === 'b2_vault' ? env.B2_VAULT_BUCKET : env.B2_COLD_BUCKET;
+  const b2Bucket = file.bucket === 'b2_main' || file.bucket === 'main'
+    ? (env.B2_MAIN_BUCKET || 'datadrop-main')
+    : file.bucket === 'b2_vault' ? env.B2_VAULT_BUCKET : env.B2_COLD_BUCKET;
   const result = await fetchB2Range(env, file, b2Bucket, rangeHeader);
   const { body, status, headers: extraHeaders } = result;
 
@@ -136,8 +148,14 @@ async function streamFile(request, env, fileId, url) {
 }
 
 async function fetchB2Range(env, file, bucket, rangeHeader) {
-  const keyId  = file.bucket === 'b2_vault' ? env.B2_VAULT_KEY_ID  : env.B2_COLD_KEY_ID;
-  const appKey = file.bucket === 'b2_vault' ? env.B2_VAULT_APP_KEY : env.B2_COLD_APP_KEY;
+  let keyId, appKey;
+  if (file.bucket === 'b2_main' || file.bucket === 'main') {
+    keyId = env.B2_MAIN_KEY_ID; appKey = env.B2_MAIN_APP_KEY;
+  } else if (file.bucket === 'b2_vault' || file.bucket === 'vault') {
+    keyId = env.B2_VAULT_KEY_ID; appKey = env.B2_VAULT_APP_KEY;
+  } else {
+    keyId = env.B2_COLD_KEY_ID; appKey = env.B2_COLD_APP_KEY;
+  }
   const auth = await getB2Auth(keyId, appKey);
 
   const downloadUrl = `${auth.downloadUrl}/file/${bucket}/${encodeURIComponent(file.storage_key)}`;
@@ -154,14 +172,4 @@ async function fetchB2Range(env, file, bucket, rangeHeader) {
   if (cr) outHeaders['Content-Range']  = cr;
 
   return { body: resp.body, status: resp.status, headers: outHeaders };
-}
-
-
-function parseRange(rangeHeader, total) {
-  const match = rangeHeader.match(/bytes=(\d*)-(\d*)/);
-  if (!match) return null;
-  const start = match[1] ? parseInt(match[1]) : 0;
-  const end   = match[2] ? parseInt(match[2]) : total - 1;
-  if (start > end || start >= total) return null;
-  return { start, end: Math.min(end, total - 1) };
 }

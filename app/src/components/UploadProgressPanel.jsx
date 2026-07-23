@@ -21,8 +21,8 @@ export default function UploadProgressPanel({ uploads }) {
     bottom: 20,
     right: 20,
     width: 320,
-    background: '#0F0F1A',
-    border: '1px solid #1E1E32',
+    background: '#0D0D22',
+    border: '1px solid rgba(255,255,255,.07)',
     borderRadius: 12,
     boxShadow: '0 8px 32px rgba(0,0,0,.6)',
     zIndex: 600,
@@ -35,8 +35,8 @@ export default function UploadProgressPanel({ uploads }) {
     alignItems: 'center',
     gap: 10,
     padding: '10px 14px',
-    background: '#11111E',
-    borderBottom: minimized ? 'none' : '1px solid #1E1E32',
+    background: '#111130',
+    borderBottom: minimized ? 'none' : '1px solid rgba(255,255,255,.07)',
     cursor: 'pointer',
     userSelect: 'none',
   }
@@ -46,8 +46,8 @@ export default function UploadProgressPanel({ uploads }) {
       <div style={header} onClick={() => setMinimized(v => !v)}>
         {active.length > 0 && (
           <div style={{
-            width: 14, height: 14, border: '2px solid rgba(91,94,244,.3)',
-            borderTopColor: '#5B5EF4', borderRadius: '50%', flexShrink: 0,
+            width: 14, height: 14, border: '2px solid rgba(99,102,241,.3)',
+            borderTopColor: '#6366F1', borderRadius: '50%', flexShrink: 0,
             animation: 'dd-spin 0.7s linear infinite',
           }} />
         )}
@@ -57,10 +57,10 @@ export default function UploadProgressPanel({ uploads }) {
         {active.length === 0 && failed.length === 0 && (
           <span style={{ color: '#00C27C', fontSize: 14 }}>✓</span>
         )}
-        <span style={{ fontSize: 13, fontWeight: 600, color: '#EEEEF8', flex: 1 }}>
+        <span style={{ fontSize: 13, fontWeight: 600, color: '#EDEDFF', flex: 1 }}>
           {headerLabel}
         </span>
-        <span style={{ color: '#55556A', fontSize: 16, lineHeight: 1 }}>
+        <span style={{ color: '#7A7AAA', fontSize: 16, lineHeight: 1 }}>
           {minimized ? '▲' : '▼'}
         </span>
       </div>
@@ -76,17 +76,17 @@ export default function UploadProgressPanel({ uploads }) {
               }}>
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{
-                    fontSize: 12, color: '#EEEEF8',
+                    fontSize: 12, color: '#EDEDFF',
                     overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
                     marginBottom: 4,
                   }}>
                     {u.name}
                   </div>
                   {!u.error && !u.done && (
-                    <div style={{ height: 2, background: '#1E1E32', borderRadius: 99 }}>
+                    <div style={{ height: 2, background: 'rgba(255,255,255,.07)', borderRadius: 99 }}>
                       <div style={{
                         width: `${u.progress || 0}%`, height: '100%',
-                        background: '#5B5EF4', borderRadius: 99, transition: 'width .15s',
+                        background: '#6366F1', borderRadius: 99, transition: 'width .15s',
                       }} />
                     </div>
                   )}

@@ -3,14 +3,14 @@
 // GET    /files              → list files (paginated)
 // GET    /files/:id          → file metadata
 // PUT    /files/:id          → rename/move
-// DELETE /files/:id          → soft delete (trash)
-// POST   /files/:id/restore  → restore from trash
+// DELETE /files/:id          → permanent delete (no trash)
 // GET    /files/:id/versions → version list
 // POST   /files/folder       → create folder
-// DELETE /files/folder/:id   → delete folder
+// DELETE /files/folder/:id   → delete folder tree
 // ============================================================
 
-import { corsResponse, handleOptions, validateSession, newId, decrementStorageBytes, isValidId, checkApiRateLimit } from '../shared/utils.js';
+import { corsResponse, handleOptions, validateSession, newId, decrementStorageBytes, isValidId, buildAccumulationBatch, incrementStorageBytes } from '../shared/utils.js';
+import { resolveBillingUserId } from '../shared/permissions.js';
 
 export default {
   async fetch(request, env) {
@@ -19,13 +19,29 @@ export default {
     const session = await validateSession(request, env);
     if (!session) return corsResponse({ error: 'Unauthorized' }, 401);
 
-    if (!(await checkApiRateLimit(env, session.userId))) {
-      return corsResponse({ error: 'Too many requests' }, 429);
-    }
-
     const url   = new URL(request.url);
     const path  = url.pathname.replace('/files', '');
     const parts = path.split('/').filter(Boolean);
+
+    // Payment Recovery Mode: block write operations that increase stored data or mutate structure.
+    // Read, delete, preview, and download are always allowed.
+    if (session.status === 'read_only' && request.method !== 'GET') {
+      const WRITE_BLOCKED_PATTERNS = [
+        '/files/folder',           // create folder
+        '/files/folder/*/vault',   // move to vault
+        '/files/folder/*/restore', // restore from trash (re-adds to storage quota)
+      ];
+      // Specifically block: create folder, rename folder, move folder to vault
+      // Allow: delete folder, permanent delete, rename file (metadata only — allow), move file (allow within storage)
+      // Block: restore versions (increases storage), share files
+      const isCreateFolder = parts[0] === 'folder' && request.method === 'POST' && !parts[1];
+      const isMoveFolderToVault = parts[0] === 'folder' && parts[2] === 'vault' && request.method === 'POST';
+      const isRestoreFolder = parts[0] === 'folder' && parts[2] === 'restore' && request.method === 'POST';
+      const isRestoreVersion = parts[1] === 'version' && parts[2] && request.method === 'POST'; // /files/:id/version/:vid/restore
+      if (isCreateFolder || isMoveFolderToVault || isRestoreFolder || isRestoreVersion) {
+        return corsResponse({ error: 'Account in payment recovery mode — uploads and write operations are paused. Please resolve your outstanding invoice.', code: 'PAYMENT_RECOVERY' }, 402);
+      }
+    }
 
     try {
       // Folder operations
@@ -34,7 +50,7 @@ export default {
         if (parts[1] && parts[2] === 'vault' && request.method === 'POST')                       return await moveFolderToVault(parts[1], request, env, session);
         if (parts[1] && parts[2] === 'restore' && request.method === 'POST')                     return await restoreFolder(parts[1], env, session);
         if (parts[1] && parts[2] === 'permanent' && request.method === 'DELETE')                 return await permanentDeleteFolder(parts[1], env, session);
-        if (parts[1] && !parts[2] && request.method === 'DELETE')                               return await deleteFolder(parts[1], env, session);
+        if (parts[1] && !parts[2] && request.method === 'DELETE')                               return await permanentDeleteFolder(parts[1], env, session);
         if (parts[1] && request.method === 'PUT')                                                return await renameFolder(parts[1], request, env, session);
       }
 
@@ -46,12 +62,10 @@ export default {
         if (!isValidId(parts[0])) return corsResponse({ error: 'Invalid ID' }, 400);
         if (request.method === 'GET')    return await getFileMeta(parts[0], env, session);
         if (request.method === 'PUT')    return await updateFile(parts[0], request, env, session);
-        if (request.method === 'DELETE') return await trashFile(parts[0], env, session);
+        // v2: DELETE is permanent — no trash hold
+        if (request.method === 'DELETE') return await permanentDeleteFile(parts[0], env, session);
       }
-      if (parts[0] && parts[1] === 'restore' && request.method === 'POST') {
-        if (!isValidId(parts[0])) return corsResponse({ error: 'Invalid ID' }, 400);
-        return await restoreFile(parts[0], env, session);
-      }
+      // Keep /permanent alias for older clients
       if (parts[0] && parts[1] === 'permanent' && request.method === 'DELETE') {
         if (!isValidId(parts[0])) return corsResponse({ error: 'Invalid ID' }, 400);
         return await permanentDeleteFile(parts[0], env, session);
@@ -165,7 +179,7 @@ async function getFileMeta(fileId, env, session) {
   if (!file) return corsResponse({ error: 'File not found' }, 404);
 
   // Live storage meter from KV
-  const { getStorageBytes, bytesToGb } = await import('../shared/utils.js');
+  const { getStorageBytes, bytesToGb } = await import('../shared/utils.js'); // lazy load to avoid circular dep
   const totalBytes = await getStorageBytes(env, session.userId);
 
   return corsResponse({ file, totalStorageGb: bytesToGb(totalBytes) });
@@ -235,6 +249,17 @@ async function updateFile(fileId, request, env, session) {
 
   if (filename !== undefined) {
     if (!filename.trim()) return corsResponse({ error: 'filename cannot be empty' }, 400);
+    // Duplicate name check: prevent two files with the same name in the same folder
+    const dup = await env.DB.prepare(`
+      SELECT f2.id FROM files f2
+      JOIN files f1 ON f1.id = ?
+      WHERE f2.user_id = ? AND f2.filename = ?
+        AND f2.folder_id IS f1.folder_id
+        AND f2.deleted_at IS NULL
+        AND f2.id != ?
+        AND (f2.version_of IS NULL OR f2.version_of = '')
+    `).bind(fileId, session.userId, filename.trim(), fileId).first();
+    if (dup) return corsResponse({ error: 'A file with that name already exists in this folder' }, 409);
     updates.push('filename = ?');
     binds.push(filename.trim());
   }
@@ -300,81 +325,59 @@ async function updateFile(fileId, request, env, session) {
   return corsResponse({ success: true });
 }
 
-// ---------- Trash file ----------
-async function trashFile(fileId, env, session) {
-  const file = await env.DB.prepare(
-    'SELECT id, user_id, size_bytes FROM files WHERE id = ? AND user_id = ? AND deleted_at IS NULL'
-  ).bind(fileId, session.userId).first();
-
-  if (!file) return corsResponse({ error: 'File not found' }, 404);
-
-  const now = Date.now();
-  const trashExpiry = now + 30 * 24 * 60 * 60 * 1000; // 30 days
-
-  const { decrementStorageBytes, buildAccumulationBatch } = await import('../shared/utils.js');
-  await env.DB.batch([
-    ...buildAccumulationBatch(session.userId, env.DB, -file.size_bytes),
-    env.DB.prepare('UPDATE files SET deleted_at = ?, trash_expires_at = ?, updated_at = ? WHERE id = ?').bind(now, trashExpiry, now, fileId),
-  ]);
-  await decrementStorageBytes(env, session.userId, file.size_bytes);
-
-  return corsResponse({ success: true, deletedAt: now, permanentlyDeletedAt: trashExpiry });
-}
-
-// ---------- Restore from trash ----------
-async function restoreFile(fileId, env, session) {
-  const file = await env.DB.prepare(
-    'SELECT id, user_id, size_bytes, deleted_at FROM files WHERE id = ? AND user_id = ?'
-  ).bind(fileId, session.userId).first();
-
-  if (!file) return corsResponse({ error: 'File not found' }, 404);
-  if (!file.deleted_at) return corsResponse({ error: 'File is not in trash' }, 400);
-
-  const { incrementStorageBytes, buildAccumulationBatch } = await import('../shared/utils.js');
-  await env.DB.batch([
-    ...buildAccumulationBatch(session.userId, env.DB, file.size_bytes),
-    env.DB.prepare('UPDATE files SET deleted_at = NULL, trash_expires_at = NULL, updated_at = ? WHERE id = ?').bind(Date.now(), fileId),
-  ]);
-  await incrementStorageBytes(env, session.userId, file.size_bytes);
-
-  return corsResponse({ success: true });
-}
-
-// ---------- Permanent delete (bypasses trash) ----------
+// ---------- Permanent delete ----------
 async function permanentDeleteFile(fileId, env, session) {
   const file = await env.DB.prepare(
-    'SELECT id, user_id, size_bytes, storage_key, bucket, deleted_at FROM files WHERE id = ? AND user_id = ?'
+    `SELECT id, user_id, team_id, size_bytes, storage_key, bucket, deleted_at
+     FROM files WHERE id = ? AND user_id = ?`
   ).bind(fileId, session.userId).first();
 
   if (!file) return corsResponse({ error: 'File not found' }, 404);
 
-  // Fetch all version records for this file
+  // Resolve billing: workspace files bill the team owner
+  const billingUserId = await resolveBillingUserId(env, file);
+
+  // Fetch all version records
   const { results: versions } = await env.DB.prepare(
     'SELECT id, size_bytes, storage_key, bucket FROM files WHERE version_of = ? AND user_id = ?'
   ).bind(fileId, session.userId).all();
 
   const totalVersionBytes = versions.reduce((s, v) => s + (v.size_bytes || 0), 0);
 
-  // Delete versions from D1, then canonical
-  for (const v of versions) {
-    await env.DB.prepare('DELETE FROM files WHERE id = ?').bind(v.id).run();
-  }
-  await env.DB.prepare('DELETE FROM files WHERE id = ?').bind(fileId).run();
+  const now2 = Date.now();
 
-  // Queue B2/R2 bucket deletion for canonical and all versions
-  await env.QUEUE.send({ type: 'DELETE_FILE_FROM_BUCKET', fileId, storageKey: file.storage_key, bucket: file.bucket, deleteFromD1: false });
-  for (const v of versions) {
-    await env.QUEUE.send({ type: 'DELETE_FILE_FROM_BUCKET', fileId: v.id, storageKey: v.storage_key, bucket: v.bucket, deleteFromD1: false });
+  // Revoke all shares atomically
+  await env.DB.prepare(
+    `UPDATE shares SET status = 'revoked', updated_at = ? WHERE file_id = ? AND status = 'active'`
+  ).bind(now2, fileId).run();
+
+  // Delete file_keys immediately — crypto material must not linger (HIGH-16)
+  await env.DB.prepare('DELETE FROM file_keys WHERE file_id = ?').bind(fileId).run();
+
+  // Update billing before marking as deleted
+  const canonicalDelta = file.deleted_at ? 0 : file.size_bytes;
+  const totalDelta     = canonicalDelta + totalVersionBytes;
+  if (totalDelta > 0) {
+    await env.DB.batch(buildAccumulationBatch(billingUserId, env.DB, -totalDelta));
+    await decrementStorageBytes(env, billingUserId, totalDelta);
   }
 
-  const { decrementStorageBytes, buildAccumulationBatch } = await import('../shared/utils.js');
-  // Accumulate total bytes delta: canonical only if not already trashed; always version bytes
-  const totalDelta = (file.deleted_at ? 0 : -file.size_bytes) - totalVersionBytes;
-  if (totalDelta !== 0) {
-    await env.DB.batch(buildAccumulationBatch(session.userId, env.DB, totalDelta));
+  // Soft-delete: hide immediately. Queue consumer hard-deletes from D1 after confirming B2 deletion.
+  // b2_delete_queued=1 lets the reconcile cron detect and re-queue lost deletion messages (HIGH-16 / L-4).
+  await env.DB.prepare(
+    'UPDATE files SET accessible = 0, b2_delete_queued = 1, deleted_at = COALESCE(deleted_at, ?) WHERE id = ?'
+  ).bind(now2, fileId).run();
+  for (const v of versions) {
+    await env.DB.prepare(
+      'UPDATE files SET accessible = 0, b2_delete_queued = 1, deleted_at = COALESCE(deleted_at, ?) WHERE id = ?'
+    ).bind(now2, v.id).run();
   }
-  if (!file.deleted_at) await decrementStorageBytes(env, session.userId, file.size_bytes);
-  if (totalVersionBytes > 0) await decrementStorageBytes(env, session.userId, totalVersionBytes);
+
+  // Queue B2 deletion + D1 hard-delete for canonical and all versions
+  await env.QUEUE.send({ type: 'DELETE_FILE_FROM_BUCKET', fileId, storageKey: file.storage_key, bucket: file.bucket, deleteFromD1: true });
+  for (const v of versions) {
+    await env.QUEUE.send({ type: 'DELETE_FILE_FROM_BUCKET', fileId: v.id, storageKey: v.storage_key, bucket: v.bucket, deleteFromD1: true });
+  }
 
   return corsResponse({ success: true });
 }
@@ -382,9 +385,14 @@ async function permanentDeleteFile(fileId, env, session) {
 // ---------- Delete a specific version ----------
 async function deleteVersion(fileId, versionId, env, session) {
   const file = await env.DB.prepare(
-    'SELECT id, size_bytes, storage_key, bucket FROM files WHERE id = ? AND user_id = ? AND deleted_at IS NULL'
+    'SELECT id, team_id, size_bytes, storage_key, bucket FROM files WHERE id = ? AND user_id = ? AND deleted_at IS NULL'
   ).bind(fileId, session.userId).first();
   if (!file) return corsResponse({ error: 'File not found' }, 404);
+
+  // Workspace files bill the team owner, not the uploader (M-4)
+  const versionBillingUserId = file.team_id
+    ? (await env.DB.prepare('SELECT owner_id FROM teams WHERE id = ?').bind(file.team_id).first())?.owner_id || session.userId
+    : session.userId;
 
   if (versionId === fileId) {
     // Deleting the CURRENT version — promote the highest archived version to become canonical
@@ -393,7 +401,7 @@ async function deleteVersion(fileId, versionId, env, session) {
     ).bind(fileId, session.userId).all();
 
     if (results.length === 0) {
-      return corsResponse({ error: 'Cannot delete the only version — trash the file instead' }, 400);
+      return corsResponse({ error: 'Cannot delete the only version — delete the file instead' }, 400);
     }
 
     const promote = results[0];
@@ -409,15 +417,15 @@ async function deleteVersion(fileId, versionId, env, session) {
     `).bind(promote.size_bytes, promote.size_gb, promote.bucket, promote.storage_key,
       promote.mime_type, promote.hash_sha256, promote.version_number, now, fileId).run();
 
-    // Hard-delete the promoted version record (its data is now in canonical)
-    await env.DB.prepare('DELETE FROM files WHERE id = ?').bind(promote.id).run();
+    await env.DB.batch(buildAccumulationBatch(versionBillingUserId, env.DB, -file.size_bytes));
+    await decrementStorageBytes(env, versionBillingUserId, file.size_bytes);
 
-    const { decrementStorageBytes, buildAccumulationBatch } = await import('../shared/utils.js');
-    await env.DB.batch(buildAccumulationBatch(session.userId, env.DB, -file.size_bytes));
-    await decrementStorageBytes(env, session.userId, file.size_bytes);
-
-    // Queue deletion of the old canonical bytes from bucket
-    await env.QUEUE.send({ type: 'DELETE_FILE_FROM_BUCKET', fileId, storageKey: oldStorageKey, bucket: oldBucket, deleteFromD1: false });
+    // Soft-delete the promoted version row; queue old canonical bytes for B2 deletion,
+    // then the consumer hard-deletes promote.id from D1 (canonical row is untouched).
+    await env.DB.prepare(
+      'UPDATE files SET accessible = 0, b2_delete_queued = 1, deleted_at = COALESCE(deleted_at, ?) WHERE id = ?'
+    ).bind(Date.now(), promote.id).run();
+    await env.QUEUE.send({ type: 'DELETE_FILE_FROM_BUCKET', fileId: promote.id, storageKey: oldStorageKey, bucket: oldBucket, deleteFromD1: true });
 
     return corsResponse({ success: true, promoted: promote.id });
   }
@@ -428,14 +436,14 @@ async function deleteVersion(fileId, versionId, env, session) {
   ).bind(versionId, fileId, session.userId).first();
   if (!version) return corsResponse({ error: 'Version not found' }, 404);
 
-  await env.DB.prepare('DELETE FROM files WHERE id = ?').bind(versionId).run();
+  await env.DB.batch(buildAccumulationBatch(versionBillingUserId, env.DB, -version.size_bytes));
+  await decrementStorageBytes(env, versionBillingUserId, version.size_bytes);
 
-  const { decrementStorageBytes, buildAccumulationBatch } = await import('../shared/utils.js');
-  await env.DB.batch(buildAccumulationBatch(session.userId, env.DB, -version.size_bytes));
-  await decrementStorageBytes(env, session.userId, version.size_bytes);
-
-  // Queue bucket deletion for this version
-  await env.QUEUE.send({ type: 'DELETE_FILE_FROM_BUCKET', fileId: version.id, storageKey: version.storage_key, bucket: version.bucket, deleteFromD1: false });
+  // Soft-delete and queue via canonical pipeline
+  await env.DB.prepare(
+    'UPDATE files SET accessible = 0, b2_delete_queued = 1, deleted_at = COALESCE(deleted_at, ?) WHERE id = ?'
+  ).bind(Date.now(), versionId).run();
+  await env.QUEUE.send({ type: 'DELETE_FILE_FROM_BUCKET', fileId: version.id, storageKey: version.storage_key, bucket: version.bucket, deleteFromD1: true });
 
   return corsResponse({ success: true });
 }
@@ -475,7 +483,7 @@ async function createFolder(request, env, session) {
 
   // Folder names must be unique within the same parent and same vault context
   const duplicate = await env.DB.prepare(
-    `SELECT id FROM folders WHERE user_id = ? AND name = ? AND parent_id ${parentId ? '= ?' : 'IS NULL'} AND (is_vault = ? OR (is_vault IS NULL AND ? = 0))`
+    `SELECT id FROM folders WHERE user_id = ? AND name = ? AND parent_id ${parentId ? '= ?' : 'IS NULL'} AND (is_vault = ? OR (is_vault IS NULL AND ? = 0)) AND deleted_at IS NULL`
   ).bind(...(parentId ? [session.userId, name.trim(), parentId, isVaultInt, isVaultInt] : [session.userId, name.trim(), isVaultInt, isVaultInt])).first();
   if (duplicate) return corsResponse({ error: 'A folder with this name already exists' }, 409);
 
@@ -592,7 +600,7 @@ async function deleteFolder(folderId, env, session) {
   }
 
   const totalBytes = allFiles.reduce((s, f) => s + (f.size_bytes || 0), 0);
-  const { decrementStorageBytes, buildAccumulationBatch } = await import('../shared/utils.js');
+  // (top-level import used)
 
   const batch = [];
   if (totalBytes > 0) batch.push(...buildAccumulationBatch(session.userId, env.DB, -totalBytes));
@@ -650,7 +658,7 @@ async function restoreFolder(folderId, env, session) {
     for (const f of results) { fileIds.push(f.id); totalBytes += f.size_bytes || 0; }
   }
 
-  const { incrementStorageBytes, buildAccumulationBatch } = await import('../shared/utils.js');
+  // (top-level import used)
   const batch = [];
   if (totalBytes > 0) batch.push(...buildAccumulationBatch(session.userId, env.DB, totalBytes));
 
@@ -681,34 +689,47 @@ async function permanentDeleteFolder(folderId, env, session) {
   if (!folder) return corsResponse({ success: true }); // already gone
 
   const allFolderIds = await collectFolderTreeAll(folderId, session.userId, env);
+  const now = Date.now();
 
-  // Collect all files (trashed or not) in these folders
+  // Collect all files (trashed or not) with full info needed by canonical pipeline
   let allFiles = [];
   for (let i = 0; i < allFolderIds.length; i += 50) {
     const chunk = allFolderIds.slice(i, i + 50);
     const ph = chunk.map(() => '?').join(',');
     const { results } = await env.DB.prepare(
-      `SELECT id, storage_key, bucket FROM files WHERE folder_id IN (${ph}) AND user_id = ?`
+      `SELECT id, size_bytes, storage_key, bucket, deleted_at, version_of FROM files WHERE folder_id IN (${ph}) AND user_id = ?`
     ).bind(...chunk, session.userId).all();
     allFiles = [...allFiles, ...results];
   }
 
-  // Queue bucket deletions for all files
+  // Decrement billing for canonical files not yet in trash (version bytes were decremented when versioned)
+  const billingDelta = allFiles
+    .filter(f => !f.deleted_at && !f.version_of)
+    .reduce((s, f) => s + (f.size_bytes || 0), 0);
+  if (billingDelta > 0) {
+    await env.DB.batch(buildAccumulationBatch(session.userId, env.DB, -billingDelta));
+    await decrementStorageBytes(env, session.userId, billingDelta);
+  }
+
+  // Purge crypto key material immediately
+  const allFileIds = allFiles.map(f => f.id);
+  for (let i = 0; i < allFileIds.length; i += 50) {
+    const chunk = allFileIds.slice(i, i + 50);
+    const ph = chunk.map(() => '?').join(',');
+    await env.DB.prepare(`DELETE FROM file_keys WHERE file_id IN (${ph})`).bind(...chunk).run();
+  }
+
+  // Soft-delete and queue B2 + D1 cleanup via canonical pipeline
   for (const f of allFiles) {
+    await env.DB.prepare(
+      'UPDATE files SET accessible = 0, b2_delete_queued = 1, deleted_at = COALESCE(deleted_at, ?) WHERE id = ?'
+    ).bind(now, f.id).run();
     if (f.storage_key && f.bucket) {
-      await env.QUEUE.send({ type: 'DELETE_FILE_FROM_BUCKET', fileId: f.id, storageKey: f.storage_key, bucket: f.bucket, deleteFromD1: false });
+      await env.QUEUE.send({ type: 'DELETE_FILE_FROM_BUCKET', fileId: f.id, storageKey: f.storage_key, bucket: f.bucket, deleteFromD1: true });
     }
   }
 
-  // Delete files from D1
-  const fileIds = allFiles.map(f => f.id);
-  for (let i = 0; i < fileIds.length; i += 50) {
-    const chunk = fileIds.slice(i, i + 50);
-    const ph = chunk.map(() => '?').join(',');
-    await env.DB.prepare(`DELETE FROM files WHERE id IN (${ph})`).bind(...chunk).run();
-  }
-
-  // Delete folder rows (bottom-up: delete in reverse BFS order)
+  // Delete folder rows immediately (folders are not in the queue pipeline)
   for (let i = allFolderIds.length - 1; i >= 0; i -= 50) {
     const chunk = allFolderIds.slice(Math.max(0, i - 49), i + 1);
     const ph = chunk.map(() => '?').join(',');
@@ -757,31 +778,21 @@ async function emptyTrash(env, session) {
     }
   }
 
-  // Delete version records from D1
+  // Soft-mark and queue B2 + D1 cleanup via canonical pipeline.
+  // These files already have deleted_at set; accessible=0 and b2_delete_queued=1 gate the consumer.
   for (const v of allVersions) {
-    await env.DB.prepare('DELETE FROM files WHERE id = ?').bind(v.id).run();
+    await env.DB.prepare('UPDATE files SET accessible = 0, b2_delete_queued = 1 WHERE id = ?').bind(v.id).run();
+    await env.QUEUE.send({ type: 'DELETE_FILE_FROM_BUCKET', fileId: v.id, storageKey: v.storage_key, bucket: v.bucket, deleteFromD1: true });
   }
 
-  // Delete canonical trash records in batches of 50
-  for (let i = 0; i < trashedIds.length; i += 50) {
-    const batch = trashedIds.slice(i, i + 50);
-    const placeholders = batch.map(() => '?').join(',');
-    await env.DB.prepare(`DELETE FROM files WHERE id IN (${placeholders})`).bind(...batch).run();
-  }
-
-  // Queue bucket deletion for all canonical files
   for (const f of trashed) {
-    await env.QUEUE.send({ type: 'DELETE_FILE_FROM_BUCKET', fileId: f.id, storageKey: f.storage_key, bucket: f.bucket, deleteFromD1: false });
-  }
-
-  // Queue bucket deletion for all version files
-  for (const v of allVersions) {
-    await env.QUEUE.send({ type: 'DELETE_FILE_FROM_BUCKET', fileId: v.id, storageKey: v.storage_key, bucket: v.bucket, deleteFromD1: false });
+    await env.DB.prepare('UPDATE files SET accessible = 0, b2_delete_queued = 1 WHERE id = ?').bind(f.id).run();
+    await env.QUEUE.send({ type: 'DELETE_FILE_FROM_BUCKET', fileId: f.id, storageKey: f.storage_key, bucket: f.bucket, deleteFromD1: true });
   }
 
   // Decrement version bytes (canonical bytes were already decremented when files were trashed)
   if (totalVersionBytes > 0) {
-    const { decrementStorageBytes, buildAccumulationBatch } = await import('../shared/utils.js');
+    // (top-level import used)
     await env.DB.batch(buildAccumulationBatch(session.userId, env.DB, -totalVersionBytes));
     await decrementStorageBytes(env, session.userId, totalVersionBytes);
   }

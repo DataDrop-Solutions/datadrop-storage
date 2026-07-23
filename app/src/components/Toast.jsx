@@ -16,7 +16,7 @@ export function ToastProvider({ children }) {
   }, [])
 
   const colors = {
-    info:    { bg: '#11111E', color: '#EEEEF8', border: '1px solid #1E1E32' },
+    info:    { bg: '#111130', color: '#EDEDFF', border: '1px solid rgba(255,255,255,.07)' },
     success: { bg: '#0A2118', color: '#00C27C', border: '1px solid rgba(0,194,124,0.25)' },
     error:   { bg: '#1E0B0B', color: '#E24B4A', border: '1px solid rgba(226,75,74,0.25)' },
     warning: { bg: '#1E1408', color: '#F59E0B', border: '1px solid rgba(245,158,11,0.25)' },

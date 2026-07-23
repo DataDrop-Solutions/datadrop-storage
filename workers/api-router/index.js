@@ -14,11 +14,11 @@ import vaultHandler     from './vault.js';
 import { handleTeams }        from './teams.js';
 import { handleClerkWebhook } from '../webhook/clerk.js';
 import { handleRazorpayWebhook } from '../webhook/razorpay.js';
-import { runBilling, runBillPreview } from '../billing/index.js';
+import { runBilling, runBillPreview, runDailyRetry } from '../billing/index.js';
 import { runBackup }    from '../backup/index.js';
 import { runTrialCron } from '../trial/index.js';
 import { migrationQueue } from '../migration/index.js';
-import { reconcile }    from '../reconcile/index.js';
+import { reconcile, expireTrash, cleanupUnconfirmedShares, cleanupStalePendingUploads, reQueueStaleDeletions } from '../reconcile/index.js';
 
 const ALLOWED_ORIGINS = new Set([
   'https://app.datadrop.co.in',
@@ -65,11 +65,12 @@ export default {
       try {
         const { name, email, subject, message } = await request.json();
         if (!name || !email || !message) return Response.json({ error: 'Missing required fields' }, { status: 400, headers: corsHeaders(origin) });
+        const esc = s => String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
         const { sendEmail } = await import('../shared/utils.js');
         await sendEmail(env, {
           to: 'support@datadrop.co.in',
-          subject: `[Contact] ${subject || 'No subject'} — ${name}`,
-          html: `<p><strong>From:</strong> ${name} &lt;${email}&gt;</p><p><strong>Subject:</strong> ${subject || '—'}</p><hr><p style="white-space:pre-wrap">${message.replace(/</g,'&lt;').replace(/>/g,'&gt;')}</p>`,
+          subject: `[Contact] ${esc(subject) || 'No subject'} — ${esc(name)}`,
+          html: `<p><strong>From:</strong> ${esc(name)} &lt;${esc(email)}&gt;</p><p><strong>Subject:</strong> ${esc(subject) || '—'}</p><hr><p style="white-space:pre-wrap">${esc(message)}</p>`,
         });
         return Response.json({ ok: true }, { headers: corsHeaders(origin) });
       } catch {
@@ -84,7 +85,7 @@ export default {
     if (path.startsWith('/user'))    return userHandler.fetch(request, env, ctx);
     if (path.startsWith('/vault'))   return vaultHandler.fetch(request, env, ctx);
     if (path.startsWith('/report'))  return reportHandler.fetch(request, env, ctx);
-    if (path.startsWith('/teams'))   { const { validateSession } = await import('../shared/utils.js'); const s = await validateSession(request, env); if (!s) return Response.json({ error: 'Unauthorized' }, { status: 401, headers: corsHeaders(origin) }); return handleTeams(request, env, s); }
+    if (path.startsWith('/teams'))   { const { validateSession } = await import('../shared/utils.js'); const s = await validateSession(request, env); if (!s) return Response.json({ error: 'Unauthorized' }, { status: 401, headers: corsHeaders(origin) }); try { return await handleTeams(request, env, s); } catch(e) { return Response.json({ error: e?.message || 'Server error' }, { status: 500, headers: corsHeaders(origin) }); } }
     if (path.startsWith('/stream'))  return streamHandler.fetch(request, env, ctx);
 
     return Response.json({ error: 'Not found' }, { status: 404, headers: corsHeaders(origin) });
@@ -95,8 +96,14 @@ export default {
     if (cron === '0 18 1 * *')  ctx.waitUntil(runBilling(env));
     if (cron === '0 18 28-31 * *') ctx.waitUntil(runBillPreview(env));
     if (cron === '0 20 * * *') ctx.waitUntil(runBackup(env));
-    if (cron === '0 2 * * *')  ctx.waitUntil(runTrialCron(env));
-    if (cron === '0 * * * *')  ctx.waitUntil(reconcile(env));
+    if (cron === '0 2 * * *')  { ctx.waitUntil(runTrialCron(env)); ctx.waitUntil(runDailyRetry(env)); } // trial + daily AutoPay retry
+    if (cron === '0 * * * *') {
+      ctx.waitUntil(reconcile(env));
+      ctx.waitUntil(expireTrash(env));
+      ctx.waitUntil(cleanupUnconfirmedShares(env));
+      ctx.waitUntil(cleanupStalePendingUploads(env));
+      ctx.waitUntil(reQueueStaleDeletions(env));
+    }
   },
 
   async queue(batch, env, ctx) {

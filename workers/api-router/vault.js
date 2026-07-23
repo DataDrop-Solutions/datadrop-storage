@@ -18,7 +18,7 @@
 //   GET  /vault/public-key/:uid→ get another user's public key (team key distribution)
 // ============================================================
 
-import { corsResponse, handleOptions, validateSession, newId, checkApiRateLimit } from '../shared/utils.js';
+import { corsResponse, handleOptions, validateSession, newId, safeCompare } from '../shared/utils.js';
 
 export default {
   async fetch(request, env) {
@@ -26,10 +26,6 @@ export default {
 
     const session = await validateSession(request, env);
     if (!session) return corsResponse({ error: 'Unauthorized' }, 401);
-
-    if (!(await checkApiRateLimit(env, session.userId))) {
-      return corsResponse({ error: 'Too many requests' }, 429);
-    }
 
     const url  = new URL(request.url);
     const path = url.pathname.replace('/vault', '');
@@ -131,7 +127,7 @@ async function verifyPin(request, env, session) {
   ).bind(session.userId).first();
 
   if (!user?.vault_pin_hash) return corsResponse({ error: 'Vault not configured' }, 404);
-  if (user.vault_pin_hash !== pinHash) {
+  if (!safeCompare(user.vault_pin_hash, pinHash)) {
     const attempts = await incrementPinAttempts(env, session.userId);
     if (attempts >= 5) {
       return corsResponse({ error: 'Too many incorrect attempts. Try again in 30 minutes.', locked: true }, 429);
@@ -154,14 +150,23 @@ async function recoverVault(request, env, session) {
     return corsResponse({ error: 'All fields required' }, 400);
   }
 
+  // Rate-limit recovery phrase attempts to prevent brute-force (HIGH-14)
+  const attempts = await incrementPinAttempts(env, `recover:${session.userId}`);
+  if (attempts > 5) {
+    return corsResponse({ error: 'Too many recovery attempts. Try again in 30 minutes.', locked: true }, 429);
+  }
+
   const user = await env.DB.prepare(
     'SELECT vault_phrase_hash, vault_phrase_enc_key, vault_phrase_salt FROM users WHERE id = ?'
   ).bind(session.userId).first();
 
   if (!user?.vault_phrase_hash) return corsResponse({ error: 'Vault not configured' }, 404);
-  if (user.vault_phrase_hash !== phraseHash) {
+  if (!safeCompare(user.vault_phrase_hash, phraseHash)) {
     return corsResponse({ error: 'Incorrect recovery phrase' }, 401);
   }
+
+  // Success — clear rate limit
+  await env.KV.delete(`pin_attempts:recover:${session.userId}`).catch(() => {});
 
   await env.DB.prepare(`
     UPDATE users SET
@@ -247,7 +252,7 @@ async function verifyPinV2(request, env, session) {
   const config = await env.DB.prepare('SELECT * FROM vault_config WHERE user_id = ?').bind(session.userId).first();
   if (!config) return corsResponse({ error: 'Vault v2 not configured' }, 404);
 
-  if (config.pin_hash !== pinHash) {
+  if (!safeCompare(config.pin_hash, pinHash)) {
     const attempts = await incrementPinAttempts(env, session.userId);
     if (attempts >= 5) return corsResponse({ error: 'Too many attempts. Try again in 30 minutes.', locked: true }, 429);
     return corsResponse({ error: 'Incorrect PIN', attemptsRemaining: 5 - attempts }, 401);
@@ -279,9 +284,20 @@ async function recoverVaultV2(request, env, session) {
 
   if (!config.recovery_phrase_encrypted) return corsResponse({ error: 'No recovery phrase configured' }, 400);
 
-  if (config.phrase_hash && phraseHash !== config.phrase_hash) {
+  // Rate-limit recovery attempts — same 5/30min policy as V1 (HIGH-1)
+  const recoverAttempts = await incrementPinAttempts(env, `recover_v2:${session.userId}`);
+  if (recoverAttempts > 5) {
+    return corsResponse({ error: 'Too many recovery attempts. Try again in 30 minutes.', locked: true }, 429);
+  }
+
+  // phrase_hash must exist — if absent the vault was set up without a phrase and recovery is impossible.
+  if (!config.phrase_hash) return corsResponse({ error: 'No recovery phrase hash stored — vault recovery unavailable' }, 400);
+  if (!safeCompare(config.phrase_hash, phraseHash)) {
     return corsResponse({ error: 'Incorrect recovery phrase' }, 401);
   }
+
+  // Success — clear rate limit
+  await env.KV.delete(`pin_attempts:recover_v2:${session.userId}`).catch(() => {});
 
   await env.DB.prepare(`
     UPDATE vault_config SET
@@ -337,15 +353,15 @@ async function storeFileKey(request, env, session) {
 
 // ── Get file key ──────────────────────────────────────────────
 async function getFileKey(fileId, env, session) {
-  // Access control: only file owner or authorized team member
+  // Access control: only file owner or verified active team member (HIGH-5)
   const file = await env.DB.prepare(
-    `SELECT f.user_id, f.team_id FROM files f
+    `SELECT f.user_id, f.team_id, tm.user_id as member_id FROM files f
      LEFT JOIN team_members tm ON tm.team_id = f.team_id AND tm.user_id = ? AND tm.status = 'active'
      WHERE f.id = ? AND f.deleted_at IS NULL`
   ).bind(session.userId, fileId).first();
 
   if (!file) return corsResponse({ error: 'File not found' }, 404);
-  if (file.user_id !== session.userId && !file.team_id) {
+  if (file.user_id !== session.userId && !file.member_id) {
     return corsResponse({ error: 'Access denied' }, 403);
   }
 
@@ -366,8 +382,32 @@ async function getFileKey(fileId, env, session) {
 async function resetVault(request, env, session) {
   const body = await request.json().catch(() => ({}));
   if (body.confirm !== 'DELETE_VAULT') {
-    return corsResponse({ error: 'Confirmation required' }, 400);
+    return corsResponse({ error: 'Confirmation required: set confirm to "DELETE_VAULT"' }, 400);
   }
+
+  // Require PIN before destructive operation — check V2 config first, fall back to V1.
+  const { pinHash } = body;
+  if (!pinHash) return corsResponse({ error: 'pinHash required to confirm vault deletion' }, 400);
+
+  // Rate-limit PIN attempts before destructive vault reset (HIGH-2)
+  const resetAttempts = await incrementPinAttempts(env, `reset:${session.userId}`);
+  if (resetAttempts > 5) {
+    return corsResponse({ error: 'Too many attempts. Try again in 30 minutes.', locked: true }, 429);
+  }
+
+  const v2config = await env.DB.prepare('SELECT pin_hash FROM vault_config WHERE user_id = ?').bind(session.userId).first();
+  if (v2config) {
+    if (!safeCompare(v2config.pin_hash, pinHash)) {
+      return corsResponse({ error: 'Incorrect PIN' }, 401);
+    }
+  } else {
+    const v1user = await env.DB.prepare('SELECT vault_pin_hash FROM users WHERE id = ?').bind(session.userId).first();
+    if (v1user?.vault_pin_hash && !safeCompare(v1user.vault_pin_hash, pinHash)) {
+      return corsResponse({ error: 'Incorrect PIN' }, 401);
+    }
+  }
+  // Success — clear rate limit
+  await env.KV.delete(`pin_attempts:reset:${session.userId}`).catch(() => {});
 
   // Collect all vault files (active + already trashed)
   const { results: active }  = await env.DB.prepare(
@@ -391,20 +431,18 @@ async function resetVault(request, env, session) {
       await env.DB.prepare(`DELETE FROM file_keys WHERE file_id IN (${batch.map(()=>'?').join(',')})`).bind(...batch).run();
     }
 
-    // Delete from D1
-    for (let i = 0; i < allIds.length; i += 50) {
-      const batch = allIds.slice(i, i + 50);
-      await env.DB.prepare(`DELETE FROM files WHERE id IN (${batch.map(()=>'?').join(',')})`).bind(...batch).run();
-    }
-
-    // Queue B2 deletion for each file
+    // Soft-delete and queue B2 + D1 cleanup via canonical pipeline
+    const nowReset = Date.now();
     for (const f of allFiles) {
-      await env.QUEUE.send({ type: 'DELETE_FILE_FROM_BUCKET', fileId: f.id, storageKey: f.storage_key, bucket: f.bucket, deleteFromD1: false });
+      await env.DB.prepare(
+        'UPDATE files SET accessible = 0, b2_delete_queued = 1, deleted_at = COALESCE(deleted_at, ?) WHERE id = ?'
+      ).bind(nowReset, f.id).run();
+      await env.QUEUE.send({ type: 'DELETE_FILE_FROM_BUCKET', fileId: f.id, storageKey: f.storage_key, bucket: f.bucket, deleteFromD1: true });
     }
 
     // Adjust storage counter
     if (totalBytes > 0) {
-      const { decrementStorageBytes, buildAccumulationBatch } = await import('../shared/utils.js');
+      const { decrementStorageBytes, buildAccumulationBatch } = await import('../shared/utils.js'); // lazy to avoid circular dep
       await env.DB.batch(buildAccumulationBatch(session.userId, env.DB, -totalBytes));
       await decrementStorageBytes(env, session.userId, totalBytes);
     }
@@ -433,7 +471,17 @@ async function resetVault(request, env, session) {
 
 // ── Get public key of another user ───────────────────────────
 async function getPublicKey(targetUserId, env, session) {
-  // Only used for team key distribution — caller must be in same team as target
+  // Only used for team key distribution — verify caller and target share an active team (M-3).
+  const sharedTeam = await env.DB.prepare(`
+    SELECT 1 FROM team_members caller
+    JOIN team_members target ON target.team_id = caller.team_id
+    WHERE caller.user_id = ? AND caller.status = 'active'
+      AND target.user_id = ? AND target.status = 'active'
+    LIMIT 1
+  `).bind(session.userId, targetUserId).first();
+
+  if (!sharedTeam) return corsResponse({ error: 'Access denied' }, 403);
+
   const user = await env.DB.prepare(
     'SELECT public_key FROM users WHERE id = ?'
   ).bind(targetUserId).first();

@@ -116,11 +116,23 @@ async function serveFile(request, env, ctx, session, fileId, mode) {
 
 // ---------- B2 fetch through Cloudflare proxy (Bandwidth Alliance — zero egress) ----------
 async function fetchFromB2(env, file, rangeHeader) {
-  const isVault  = file.bucket === 'b2_vault' || file.bucket === 'vault';
-  const keyId    = isVault ? env.B2_VAULT_KEY_ID    : env.B2_COLD_KEY_ID;
-  const appKey   = isVault ? env.B2_VAULT_APP_KEY   : env.B2_COLD_APP_KEY;
-  const bucket   = isVault ? env.B2_VAULT_BUCKET    : env.B2_COLD_BUCKET;
-  const bucketId = isVault ? env.B2_VAULT_BUCKET_ID : env.B2_COLD_BUCKET_ID;
+  let keyId, appKey, bucket, bucketId;
+  if (file.bucket === 'b2_main' || file.bucket === 'main') {
+    keyId    = env.B2_MAIN_KEY_ID;
+    appKey   = env.B2_MAIN_APP_KEY;
+    bucket   = env.B2_MAIN_BUCKET || 'datadrop-main';
+    bucketId = env.B2_MAIN_BUCKET_ID;
+  } else if (file.bucket === 'b2_vault' || file.bucket === 'vault') {
+    keyId    = env.B2_VAULT_KEY_ID;
+    appKey   = env.B2_VAULT_APP_KEY;
+    bucket   = env.B2_VAULT_BUCKET;
+    bucketId = env.B2_VAULT_BUCKET_ID;
+  } else {
+    keyId    = env.B2_COLD_KEY_ID;
+    appKey   = env.B2_COLD_APP_KEY;
+    bucket   = env.B2_COLD_BUCKET;
+    bucketId = env.B2_COLD_BUCKET_ID;
+  }
 
   if (!keyId || !appKey) throw new Error('B2 credentials not configured for this storage type');
 

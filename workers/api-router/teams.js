@@ -3,7 +3,7 @@
 // Routes: /teams/*
 // ============================================================
 
-import { corsResponse, newId, sendEmail } from '../shared/utils.js';
+import { corsResponse, newId, sendEmail, buildAccumulationBatch, decrementStorageBytes } from '../shared/utils.js';
 
 export async function handleTeams(request, env, session) {
   const url  = new URL(request.url);
@@ -66,6 +66,14 @@ export async function handleTeams(request, env, session) {
   const teamKeyUserMatch = path.match(/^\/([^/]+)\/keys\/([^/]+)$/);
   if (teamKeyUserMatch && request.method === 'GET')    return getTeamKey(teamKeyUserMatch[1], teamKeyUserMatch[2], env, session);
   if (teamKeyUserMatch && request.method === 'DELETE') return revokeTeamKey(teamKeyUserMatch[1], teamKeyUserMatch[2], env, session);
+
+  // Workspace root key (per-member encrypted copy of the workspace master key)
+  const rootKeyMatch = path.match(/^\/([^/]+)\/root-key$/);
+  if (rootKeyMatch && request.method === 'POST') return storeRootKey(rootKeyMatch[1], request, env, session);
+  if (rootKeyMatch && request.method === 'GET')  return getOwnRootKey(rootKeyMatch[1], env, session);
+
+  const rootKeyUserMatch = path.match(/^\/([^/]+)\/root-key\/([^/]+)$/);
+  if (rootKeyUserMatch && request.method === 'GET') return getRootKeyForUser(rootKeyUserMatch[1], rootKeyUserMatch[2], env, session);
 
   return corsResponse({ error: 'Not found' }, 404);
 }
@@ -211,7 +219,7 @@ async function createTeamFolder(teamId, request, env, session) {
 
   // Uniqueness check within same parent
   const duplicate = await env.DB.prepare(
-    `SELECT id FROM folders WHERE team_id = ? AND name = ? AND parent_id ${parentId ? '= ?' : 'IS NULL'}`
+    `SELECT id FROM folders WHERE team_id = ? AND name = ? AND parent_id ${parentId ? '= ?' : 'IS NULL'} AND deleted_at IS NULL`
   ).bind(...(parentId ? [teamId, name.trim(), parentId] : [teamId, name.trim()])).first();
   if (duplicate) return corsResponse({ error: 'A folder with this name already exists' }, 409);
 
@@ -236,7 +244,65 @@ async function deleteTeamFolder(teamId, folderId, env, session) {
   ).bind(folderId, teamId).first();
   if (!folder) return corsResponse({ error: 'Folder not found' }, 404);
 
-  await env.DB.prepare('DELETE FROM folders WHERE id = ? AND team_id = ?').bind(folderId, teamId).run();
+  // Collect entire folder subtree (BFS)
+  const allFolderIds = [folderId];
+  const bfsQueue = [folderId];
+  while (bfsQueue.length) {
+    const parentId = bfsQueue.shift();
+    const { results: children } = await env.DB.prepare(
+      'SELECT id FROM folders WHERE parent_id = ? AND team_id = ?'
+    ).bind(parentId, teamId).all();
+    for (const r of children) { allFolderIds.push(r.id); bfsQueue.push(r.id); }
+  }
+
+  // Collect all files in those folders (canonical + versions)
+  let allFiles = [];
+  for (let i = 0; i < allFolderIds.length; i += 50) {
+    const chunk = allFolderIds.slice(i, i + 50);
+    const ph = chunk.map(() => '?').join(',');
+    const { results } = await env.DB.prepare(
+      `SELECT id, size_bytes, storage_key, bucket, deleted_at, version_of FROM files WHERE folder_id IN (${ph}) AND team_id = ?`
+    ).bind(...chunk, teamId).all();
+    allFiles = [...allFiles, ...results];
+  }
+
+  const billingUserId = mem.team.owner_id;
+  const now = Date.now();
+
+  // Only decrement billing for canonical files not yet deleted
+  const billingDelta = allFiles
+    .filter(f => !f.deleted_at && !f.version_of)
+    .reduce((s, f) => s + (f.size_bytes || 0), 0);
+
+  if (billingDelta > 0) {
+    await env.DB.batch(buildAccumulationBatch(billingUserId, env.DB, -billingDelta));
+    await decrementStorageBytes(env, billingUserId, billingDelta);
+  }
+
+  // Purge crypto key material
+  for (let i = 0; i < allFiles.length; i += 50) {
+    const chunk = allFiles.slice(i, i + 50).map(f => f.id);
+    const ph = chunk.map(() => '?').join(',');
+    await env.DB.prepare(`DELETE FROM file_keys WHERE file_id IN (${ph})`).bind(...chunk).run();
+  }
+
+  // Soft-delete files and queue B2 + D1 cleanup
+  for (const f of allFiles) {
+    await env.DB.prepare(
+      'UPDATE files SET accessible = 0, b2_delete_queued = 1, deleted_at = COALESCE(deleted_at, ?) WHERE id = ?'
+    ).bind(now, f.id).run();
+    if (f.storage_key && f.bucket) {
+      await env.QUEUE.send({ type: 'DELETE_FILE_FROM_BUCKET', fileId: f.id, storageKey: f.storage_key, bucket: f.bucket, deleteFromD1: true });
+    }
+  }
+
+  // Hard-delete folder rows (leaf-first so no FK issues)
+  for (let i = allFolderIds.length - 1; i >= 0; i -= 50) {
+    const chunk = allFolderIds.slice(Math.max(0, i - 49), i + 1);
+    const ph = chunk.map(() => '?').join(',');
+    await env.DB.prepare(`DELETE FROM folders WHERE id IN (${ph})`).bind(...chunk).run();
+  }
+
   return corsResponse({ success: true });
 }
 
@@ -253,21 +319,53 @@ async function getTeamFile(teamId, fileId, env, session) {
   return corsResponse({ file });
 }
 
-// ── Team workspace: soft-delete file ─────────────────────────
+// ── Team workspace: permanent delete file ────────────────────
 async function deleteTeamFile(teamId, fileId, env, session) {
   const mem = await checkMembership(teamId, session.userId, env);
   if (!mem || !canManage(mem.role)) return corsResponse({ error: 'Forbidden' }, 403);
 
   const file = await env.DB.prepare(
-    'SELECT id, size_bytes FROM files WHERE id = ? AND team_id = ? AND deleted_at IS NULL'
+    'SELECT id, user_id, size_bytes, storage_key, bucket FROM files WHERE id = ? AND team_id = ? AND deleted_at IS NULL'
   ).bind(fileId, teamId).first();
   if (!file) return corsResponse({ error: 'File not found' }, 404);
 
-  const now     = Date.now();
-  const expires = now + 30 * 86400000;
+  // Billing goes to team owner
+  const billingUserId = mem.team.owner_id;
+
+  // Revoke any shares of this file
   await env.DB.prepare(
-    'UPDATE files SET deleted_at = ?, trash_expires_at = ? WHERE id = ?'
-  ).bind(now, expires, fileId).run();
+    "UPDATE shares SET status = 'revoked', updated_at = ? WHERE file_id = ? AND status = 'active'"
+  ).bind(Date.now(), fileId).run();
+
+  // Fetch versions
+  const { results: versions } = await env.DB.prepare(
+    'SELECT id, size_bytes, storage_key, bucket FROM files WHERE version_of = ?'
+  ).bind(fileId).all();
+
+  const totalVersionBytes = versions.reduce((s, v) => s + (v.size_bytes || 0), 0);
+
+  const totalDelta = (file.size_bytes || 0) + totalVersionBytes;
+  if (totalDelta > 0) {
+    await env.DB.batch(buildAccumulationBatch(billingUserId, env.DB, -totalDelta));
+    await decrementStorageBytes(env, billingUserId, totalDelta);
+  }
+
+  // Purge crypto key material immediately
+  await env.DB.prepare('DELETE FROM file_keys WHERE file_id = ?').bind(fileId).run();
+
+  const now = Date.now();
+  // Soft-delete and queue B2 + D1 cleanup via canonical pipeline
+  await env.DB.prepare(
+    'UPDATE files SET accessible = 0, b2_delete_queued = 1, deleted_at = COALESCE(deleted_at, ?) WHERE id = ?'
+  ).bind(now, fileId).run();
+  await env.QUEUE.send({ type: 'DELETE_FILE_FROM_BUCKET', fileId, storageKey: file.storage_key, bucket: file.bucket, deleteFromD1: true });
+
+  for (const v of versions) {
+    await env.DB.prepare(
+      'UPDATE files SET accessible = 0, b2_delete_queued = 1, deleted_at = COALESCE(deleted_at, ?) WHERE id = ?'
+    ).bind(now, v.id).run();
+    await env.QUEUE.send({ type: 'DELETE_FILE_FROM_BUCKET', fileId: v.id, storageKey: v.storage_key, bucket: v.bucket, deleteFromD1: true });
+  }
 
   return corsResponse({ success: true });
 }
@@ -303,8 +401,8 @@ async function promoteTeamFileVersion(teamId, fileId, request, env, session) {
   if (!canonical) return corsResponse({ error: 'File not found' }, 404);
 
   const newFile = await env.DB.prepare(
-    'SELECT storage_key, size_bytes, size_gb, bucket, mime_type, hash_sha256 FROM files WHERE id = ? AND deleted_at IS NULL'
-  ).bind(promoteFrom).first();
+    'SELECT storage_key, size_bytes, size_gb, bucket, mime_type, hash_sha256 FROM files WHERE id = ? AND team_id = ? AND deleted_at IS NULL'
+  ).bind(promoteFrom, teamId).first();
   if (!newFile) return corsResponse({ error: 'Source file not found' }, 404);
 
   const now    = Date.now();
@@ -352,24 +450,27 @@ async function inviteMember(teamId, request, env, session) {
     if (!mem || mem.role !== 'admin') return corsResponse({ error: 'Forbidden' }, 403);
   }
 
-  const { emailOrUsername, role: inviteRole = 'upload' } = await request.json();
-  if (!emailOrUsername?.trim()) return corsResponse({ error: 'emailOrUsername required' }, 400);
+  const { email: rawEmail, role: inviteRole = 'upload' } = await request.json();
+  const email = rawEmail?.trim().toLowerCase();
+  if (!email) return corsResponse({ error: 'Email is required' }, 400);
+  if (!email.includes('@')) return corsResponse({ error: 'Please enter a valid email address' }, 400);
   if (!VALID_ROLES.includes(inviteRole)) return corsResponse({ error: 'Invalid role' }, 400);
 
   const target = await env.DB.prepare(
-    "SELECT id, email, display_name FROM users WHERE email = ? OR username = ? AND deleted_at IS NULL LIMIT 1"
-  ).bind(emailOrUsername.trim(), emailOrUsername.trim()).first();
+    "SELECT id, email, display_name FROM users WHERE email = ? AND deleted_at IS NULL LIMIT 1"
+  ).bind(email).first();
 
-  const now     = Date.now();
-  const expires = now + 7 * 86400000;
-  const token   = crypto.randomUUID();
+  const now      = Date.now();
+  const expires  = now + 7 * 86400000;
+  const token    = crypto.randomUUID();
   const inviteId = newId();
+  const inviter  = await env.DB.prepare('SELECT display_name FROM users WHERE id = ?').bind(uid).first();
 
   if (target) {
     const existing = await env.DB.prepare(
       "SELECT id FROM team_members WHERE team_id = ? AND user_id = ? AND status = 'active'"
     ).bind(teamId, target.id).first();
-    if (existing) return corsResponse({ error: 'User is already a team member' }, 409);
+    if (existing) return corsResponse({ error: 'User is already a member of this workspace' }, 409);
 
     const existingInvite = await env.DB.prepare(
       "SELECT id FROM team_invites WHERE team_id = ? AND invited_user_id = ? AND status = 'pending'"
@@ -381,43 +482,36 @@ async function inviteMember(teamId, request, env, session) {
       VALUES (?, ?, ?, ?, ?, ?, ?, 'pending', ?, ?)
     `).bind(inviteId, teamId, target.email, target.id, uid, token, inviteRole, now, expires).run();
 
-    const inviter = await env.DB.prepare('SELECT display_name FROM users WHERE id = ?').bind(uid).first();
     await sendEmail(env, {
       to: target.email,
       subject: `${inviter?.display_name || 'Someone'} invited you to join "${team.name}" on DataDrop`,
       html: `<p>Hi ${target.display_name},</p>
-        <p><strong>${inviter?.display_name || 'A DataDrop user'}</strong> has invited you to join the team <strong>"${team.name}"</strong>.</p>
+        <p><strong>${inviter?.display_name || 'A DataDrop user'}</strong> has invited you to join the workspace <strong>"${team.name}"</strong>.</p>
         <p><a href="https://app.datadrop.co.in/teams?token=${token}" style="background:#6366f1;color:#fff;padding:12px 24px;text-decoration:none;border-radius:6px;display:inline-block">Accept Invitation →</a></p>
         <p style="color:#888;font-size:12px">This invite expires in 7 days. If you didn't expect this, you can ignore this email.</p>`,
     });
-
-    return corsResponse({ success: true, invited: target.email });
   } else {
-    const email = emailOrUsername.includes('@') ? emailOrUsername.trim() : null;
-    if (!email) return corsResponse({ error: 'User not found. Use email to invite someone without an account.' }, 404);
-
     const existingInvite = await env.DB.prepare(
       "SELECT id FROM team_invites WHERE team_id = ? AND invited_email = ? AND status = 'pending'"
-    ).bind(teamId, email).first();
-    if (existingInvite) return corsResponse({ error: 'Email already invited' }, 409);
+    ).bind(email).first();
+    if (existingInvite) return corsResponse({ error: 'An invite has already been sent to this email' }, 409);
 
     await env.DB.prepare(`
       INSERT INTO team_invites (id, team_id, invited_email, invited_user_id, invited_by, token, role, status, created_at, expires_at)
       VALUES (?, ?, ?, NULL, ?, ?, ?, 'pending', ?, ?)
     `).bind(inviteId, teamId, email, uid, token, inviteRole, now, expires).run();
 
-    const inviter = await env.DB.prepare('SELECT display_name FROM users WHERE id = ?').bind(uid).first();
     await sendEmail(env, {
       to: email,
       subject: `You've been invited to join "${team.name}" on DataDrop`,
-      html: `<p><strong>${inviter?.display_name || 'A DataDrop user'}</strong> has invited you to join the team <strong>"${team.name}"</strong> on DataDrop.</p>
+      html: `<p><strong>${inviter?.display_name || 'A DataDrop user'}</strong> has invited you to join the workspace <strong>"${team.name}"</strong> on DataDrop.</p>
         <p><a href="https://app.datadrop.co.in/teams?token=${token}" style="background:#6366f1;color:#fff;padding:12px 24px;text-decoration:none;border-radius:6px;display:inline-block">Accept Invitation →</a></p>
         <p>If you don't have a DataDrop account, you'll be prompted to create one.</p>
         <p style="color:#888;font-size:12px">This invite expires in 7 days.</p>`,
     });
-
-    return corsResponse({ success: true, invited: email });
   }
+
+  return corsResponse({ success: true, invited: email });
 }
 
 // ── Accept invite ─────────────────────────────────────────────
@@ -501,7 +595,13 @@ async function removeMember(teamId, memberId, env, session) {
   if (!member) return corsResponse({ error: 'Member not found' }, 404);
   if (member.user_id === team.owner_id) return corsResponse({ error: 'Cannot remove the team owner' }, 400);
 
-  await env.DB.prepare("UPDATE team_members SET status = 'removed' WHERE id = ?").bind(memberId).run();
+  await env.DB.batch([
+    env.DB.prepare("UPDATE team_members SET status = 'removed' WHERE id = ?").bind(memberId),
+    env.DB.prepare('DELETE FROM team_keys WHERE team_id = ? AND user_id = ?').bind(teamId, member.user_id),
+    env.DB.prepare('DELETE FROM workspace_root_keys WHERE team_id = ? AND user_id = ?').bind(teamId, member.user_id),
+    // Revoke per-file DEKs so removed member cannot decrypt workspace files (HIGH-5)
+    env.DB.prepare('DELETE FROM file_keys WHERE user_id = ? AND file_id IN (SELECT id FROM files WHERE team_id = ?)').bind(member.user_id, teamId),
+  ]);
   return corsResponse({ success: true });
 }
 
@@ -512,9 +612,13 @@ async function leaveTeam(teamId, env, session) {
   if (!team) return corsResponse({ error: 'Team not found' }, 404);
   if (team.owner_id === uid) return corsResponse({ error: 'Owner cannot leave — dissolve the team instead' }, 400);
 
-  await env.DB.prepare(
-    "UPDATE team_members SET status = 'removed' WHERE team_id = ? AND user_id = ? AND status = 'active'"
-  ).bind(teamId, uid).run();
+  await env.DB.batch([
+    env.DB.prepare("UPDATE team_members SET status = 'removed' WHERE team_id = ? AND user_id = ? AND status = 'active'").bind(teamId, uid),
+    env.DB.prepare('DELETE FROM team_keys WHERE team_id = ? AND user_id = ?').bind(teamId, uid),
+    env.DB.prepare('DELETE FROM workspace_root_keys WHERE team_id = ? AND user_id = ?').bind(teamId, uid),
+    // Revoke per-file DEKs (HIGH-5)
+    env.DB.prepare('DELETE FROM file_keys WHERE user_id = ? AND file_id IN (SELECT id FROM files WHERE team_id = ?)').bind(uid, teamId),
+  ]);
 
   return corsResponse({ success: true });
 }
@@ -524,11 +628,54 @@ async function dissolveTeam(teamId, env, session) {
   const uid  = session.userId;
   const team = await env.DB.prepare('SELECT owner_id FROM teams WHERE id = ?').bind(teamId).first();
   if (!team) return corsResponse({ error: 'Team not found' }, 404);
-  if (team.owner_id !== uid) return corsResponse({ error: 'Only owner can dissolve the team' }, 403);
+  if (team.owner_id !== uid) return corsResponse({ error: 'Only the workspace owner can dissolve it' }, 403);
 
-  await env.DB.prepare("UPDATE team_members SET status = 'removed' WHERE team_id = ?").bind(teamId).run();
-  await env.DB.prepare("UPDATE team_invites SET status = 'expired' WHERE team_id = ? AND status = 'pending'").bind(teamId).run();
-  await env.DB.prepare('DELETE FROM teams WHERE id = ?').bind(teamId).run();
+  // Collect all team files to queue for bucket deletion
+  const { results: teamFiles } = await env.DB.prepare(
+    'SELECT id, storage_key, bucket, size_bytes FROM files WHERE team_id = ? AND deleted_at IS NULL'
+  ).bind(teamId).all();
+
+  const totalBytes = teamFiles.reduce((s, f) => s + (f.size_bytes || 0), 0);
+  const nowDissolve = Date.now();
+
+  // Batch soft-delete all files in one round-trip
+  if (teamFiles.length > 0) {
+    const fileUpdateStmts = teamFiles.map(f =>
+      env.DB.prepare(
+        'UPDATE files SET accessible = 0, b2_delete_queued = 1, deleted_at = COALESCE(deleted_at, ?) WHERE id = ?'
+      ).bind(nowDissolve, f.id)
+    );
+    await env.DB.batch(fileUpdateStmts);
+
+    // Queue B2 deletions (best-effort — reconcile cron catches any misses)
+    for (const f of teamFiles) {
+      try {
+        await env.QUEUE.send({ type: 'DELETE_FILE_FROM_BUCKET', fileId: f.id, storageKey: f.storage_key, bucket: f.bucket, deleteFromD1: true });
+      } catch (_) {}
+    }
+  }
+
+  // Clean up key tables individually — these may not exist on older DB instances
+  for (const stmt of [
+    env.DB.prepare('DELETE FROM workspace_root_keys WHERE team_id = ?').bind(teamId),
+    env.DB.prepare('DELETE FROM team_keys WHERE team_id = ?').bind(teamId),
+    env.DB.prepare('DELETE FROM workspace_folder_keys WHERE team_id = ?').bind(teamId),
+  ]) {
+    try { await stmt.run(); } catch (_) {}
+  }
+
+  // Batch the critical membership + team deletion (these tables always exist)
+  await env.DB.batch([
+    env.DB.prepare("UPDATE team_members SET status = 'removed' WHERE team_id = ?").bind(teamId),
+    env.DB.prepare("UPDATE team_invites SET status = 'expired' WHERE team_id = ? AND status = 'pending'").bind(teamId),
+    env.DB.prepare('DELETE FROM teams WHERE id = ?').bind(teamId),
+  ]);
+
+  // Decrement owner's storage counter
+  if (totalBytes > 0) {
+    await env.DB.batch(buildAccumulationBatch(uid, env.DB, -totalBytes));
+    await decrementStorageBytes(env, uid, totalBytes);
+  }
 
   return corsResponse({ success: true });
 }
@@ -556,6 +703,11 @@ async function storeTeamKey(teamId, request, env, session) {
   ).bind(teamId, recipientId).first();
 
   if (existing) {
+    // An admin distributing to another member cannot silently overwrite that member's existing key
+    // (that would be a key-escrow attack). The member must re-key themselves (HIGH-11).
+    if (recipientId !== session.userId) {
+      return corsResponse({ error: 'Cannot overwrite an existing key for another member' }, 403);
+    }
     await env.DB.prepare(
       'UPDATE team_keys SET encrypted_team_key = ?, ephemeral_public_key = ?, key_nonce = ? WHERE id = ?'
     ).bind(encryptedTeamKey, ephemeralPublicKey, keyNonce, existing.id).run();
@@ -612,4 +764,87 @@ async function revokeTeamKey(teamId, userId, env, session) {
   ).bind(teamId, userId).run();
 
   return corsResponse({ success: true });
+}
+
+// ── Workspace Root Key (V2 key hierarchy) ─────────────────────
+// POST /teams/:id/root-key — store encrypted root key for a member
+async function storeRootKey(teamId, request, env, session) {
+  const mem = await checkMembership(teamId, session.userId, env);
+  if (!mem) return corsResponse({ error: 'Not a member' }, 403);
+
+  const { encryptedRootKey, ephemeralPublicKey, keyNonce, targetUserId, keyVersion = 1 } = await request.json();
+  if (!encryptedRootKey || !ephemeralPublicKey || !keyNonce) {
+    return corsResponse({ error: 'encryptedRootKey, ephemeralPublicKey, keyNonce required' }, 400);
+  }
+
+  const recipientId = targetUserId || session.userId;
+
+  // Only owner/admin can distribute root keys to other members
+  if (recipientId !== session.userId && !canAdmin(mem.role)) {
+    return corsResponse({ error: 'Only admins can distribute root keys to other members' }, 403);
+  }
+
+  const existing = await env.DB.prepare(
+    'SELECT id FROM workspace_root_keys WHERE team_id = ? AND user_id = ?'
+  ).bind(teamId, recipientId).first();
+
+  if (existing) {
+    // Same protection as storeTeamKey: admins cannot silently overwrite another member's root key.
+    if (recipientId !== session.userId) {
+      return corsResponse({ error: 'Cannot overwrite an existing root key for another member' }, 403);
+    }
+    await env.DB.prepare(`
+      UPDATE workspace_root_keys SET encrypted_root_key = ?, ephemeral_public_key = ?, key_nonce = ?, key_version = ? WHERE id = ?
+    `).bind(encryptedRootKey, ephemeralPublicKey, keyNonce, keyVersion, existing.id).run();
+  } else {
+    await env.DB.prepare(`
+      INSERT INTO workspace_root_keys (id, team_id, user_id, encrypted_root_key, ephemeral_public_key, key_nonce, key_version, created_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    `).bind(newId(), teamId, recipientId, encryptedRootKey, ephemeralPublicKey, keyNonce, keyVersion, Date.now()).run();
+  }
+
+  return corsResponse({ success: true });
+}
+
+// GET /teams/:id/root-key — retrieve own encrypted root key
+async function getOwnRootKey(teamId, env, session) {
+  const mem = await checkMembership(teamId, session.userId, env);
+  if (!mem) return corsResponse({ error: 'Not a member' }, 403);
+
+  const row = await env.DB.prepare(
+    'SELECT encrypted_root_key, ephemeral_public_key, key_nonce, key_version FROM workspace_root_keys WHERE team_id = ? AND user_id = ?'
+  ).bind(teamId, session.userId).first();
+
+  if (!row) return corsResponse({ error: 'Root key not found — contact team admin to distribute your key' }, 404);
+
+  return corsResponse({
+    encryptedRootKey:   row.encrypted_root_key,
+    ephemeralPublicKey: row.ephemeral_public_key,
+    keyNonce:           row.key_nonce,
+    keyVersion:         row.key_version,
+  });
+}
+
+// GET /teams/:id/root-key/:userId — admin retrieval of any member's root key
+async function getRootKeyForUser(teamId, userId, env, session) {
+  const mem = await checkMembership(teamId, session.userId, env);
+  if (!mem) return corsResponse({ error: 'Not a member' }, 403);
+
+  // Members can only get their own key; admins can get any member's key
+  if (userId !== session.userId && !canAdmin(mem.role)) {
+    return corsResponse({ error: 'Forbidden' }, 403);
+  }
+
+  const row = await env.DB.prepare(
+    'SELECT encrypted_root_key, ephemeral_public_key, key_nonce, key_version FROM workspace_root_keys WHERE team_id = ? AND user_id = ?'
+  ).bind(teamId, userId).first();
+
+  if (!row) return corsResponse({ error: 'Root key not found' }, 404);
+
+  return corsResponse({
+    encryptedRootKey:   row.encrypted_root_key,
+    ephemeralPublicKey: row.ephemeral_public_key,
+    keyNonce:           row.key_nonce,
+    keyVersion:         row.key_version,
+  });
 }

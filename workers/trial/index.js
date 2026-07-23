@@ -1,12 +1,12 @@
 // ============================================================
 // DataDrop — Trial Worker (Cron: daily at 07:00 IST)
-// Manages trial lifecycle:
-//   Day 6:  personalised email with usage & cost preview
-//   Day 7:  trial ends (trial_ends_at reached)
-//   Day 8:  uploads paused, first reminder
-//   Day 10: second reminder
-//   Day 13: third reminder
-//   Day 15: permanent deletion if no payment
+// 15-day trial lifecycle (30-day total retention from account creation):
+//   Day 13: personalised email with usage & cost preview
+//   Day 15: trial ends → read_only
+//   Day 16: first reminder (1 day after trial end, 14 days left)
+//   Day 20: second reminder (5 days after trial end, 10 days left)
+//   Day 27: third/final warning (12 days after trial end, 3 days left)
+//   Day 30: permanent deletion if no payment (15 + 15 grace)
 // ============================================================
 
 import { calcStorageCost, sendEmail, getStorageBytes, bytesToGb } from '../shared/utils.js';
@@ -64,11 +64,12 @@ async function processTrialUser(env, user, now) {
   if (!trialEndsAt) return;
 
   const msPerDay = 86400000;
-  const trialDaysPassed = (now - (trialEndsAt - 7 * msPerDay)) / msPerDay;
+  // trial_ends_at is set at signup as now + 15 days
+  const trialDaysPassed = (now - (trialEndsAt - 15 * msPerDay)) / msPerDay;
 
-  // Day 6: personalised usage email (send once, 1 day before trial ends)
-  if (trialDaysPassed >= 6 && trialDaysPassed < 7) {
-    await maybeSendTrialEmail(env, user, 'trial_day6', async () => {
+  // Day 13: personalised usage email (2 days before trial ends)
+  if (trialDaysPassed >= 13 && trialDaysPassed < 14) {
+    await maybeSendTrialEmail(env, user, 'trial_day13', async () => {
       const storageBytes = await getStorageBytes(env, user.id);
       const storageGb    = bytesToGb(storageBytes);
       const monthlyCost  = await calcStorageCost(env, storageGb);
@@ -76,12 +77,11 @@ async function processTrialUser(env, user, now) {
     });
   }
 
-  // Day 7+: trial has expired — set to read_only
+  // Day 15+: trial has expired — set to read_only (uploads paused)
   if (now >= trialEndsAt && user.status === 'trial') {
     await env.DB.prepare(
       "UPDATE users SET status = 'read_only' WHERE id = ? AND status = 'trial'"
     ).bind(user.id).run();
-    void(`[Trial] User ${user.id} trial expired, set to read_only`);
   }
 }
 
@@ -92,32 +92,32 @@ async function processLapsedTrialUser(env, user, now) {
   const msPerDay = 86400000;
   const daysSinceTrialEnd = (now - trialEndsAt) / msPerDay;
 
-  // Day 8 (1 day after trial end): first reminder
+  // Day 16 (1 day after trial end, 14 days left): first reminder
   if (daysSinceTrialEnd >= 1 && daysSinceTrialEnd < 2) {
-    await maybeSendTrialEmail(env, user, 'lapsed_day8', () => ({
+    await maybeSendTrialEmail(env, user, 'lapsed_day16', () => ({
       subject: 'DataDrop trial ended — set up billing to keep your files',
-      html: lapsedReminderHtml(user.display_name, 7),
+      html: lapsedReminderHtml(user.display_name, 14),
     }));
   }
 
-  // Day 10 (3 days after trial end): second reminder
-  if (daysSinceTrialEnd >= 3 && daysSinceTrialEnd < 4) {
-    await maybeSendTrialEmail(env, user, 'lapsed_day10', () => ({
-      subject: 'DataDrop: Your files will be deleted in 5 days',
-      html: lapsedReminderHtml(user.display_name, 5),
+  // Day 20 (5 days after trial end, 10 days left): second reminder
+  if (daysSinceTrialEnd >= 5 && daysSinceTrialEnd < 6) {
+    await maybeSendTrialEmail(env, user, 'lapsed_day20', () => ({
+      subject: 'DataDrop: Your files will be deleted — 10 days remaining',
+      html: lapsedReminderHtml(user.display_name, 10),
     }));
   }
 
-  // Day 13 (6 days after trial end): final warning
-  if (daysSinceTrialEnd >= 6 && daysSinceTrialEnd < 7) {
-    await maybeSendTrialEmail(env, user, 'lapsed_day13', () => ({
-      subject: '⚠️ DataDrop: 2 days until your files are permanently deleted',
-      html: lapsedReminderHtml(user.display_name, 2),
+  // Day 27 (12 days after trial end, 3 days before deletion): final warning
+  if (daysSinceTrialEnd >= 12 && daysSinceTrialEnd < 13) {
+    await maybeSendTrialEmail(env, user, 'lapsed_day27', () => ({
+      subject: 'DataDrop: 3 days until your files are permanently deleted',
+      html: lapsedReminderHtml(user.display_name, 3),
     }));
   }
 
-  // Day 15 (8 days after trial end): permanent deletion
-  if (daysSinceTrialEnd >= 8) {
+  // Day 30 (15 days after trial end, 30 days from account creation): permanent deletion
+  if (daysSinceTrialEnd >= 15) {
     await permanentlyDeleteTrialUser(env, user);
   }
 }
@@ -182,10 +182,10 @@ function usagePreviewEmail(user, storageGb, monthlyCost) {
     : `${storageGb.toFixed(2)} GB`;
 
   return {
-    subject: 'Your DataDrop trial ends tomorrow',
+    subject: 'Your DataDrop trial ends in 2 days',
     html: `
       <p>Hi ${user.display_name},</p>
-      <p>Your DataDrop free trial ends tomorrow.</p>
+      <p>Your DataDrop free trial ends in 2 days.</p>
       <h3>Your usage so far:</h3>
       <ul>
         <li>Storage used: <strong>${storageText}</strong></li>
@@ -194,7 +194,7 @@ function usagePreviewEmail(user, storageGb, monthlyCost) {
       <p>To keep your files and continue using DataDrop, set up your storage wallet at:
          <a href="https://app.datadrop.co.in/billing">app.datadrop.co.in/billing</a></p>
       <p>You only pay for what you store. Prices drop as you store more. Every feature is included.</p>
-      <p>If you don't set up billing, your files will be deleted on day 15.</p>
+      <p>If you don't set up billing, your files will be kept for 15 more days (30 days from account creation) then permanently deleted.</p>
     `,
   };
 }

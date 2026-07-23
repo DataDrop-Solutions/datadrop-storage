@@ -14,7 +14,7 @@ function fmtBytes(bytes) {
 
 export function StorageMeter({ meter }) {
   const pct   = Math.min(100, meter?.usedPercent || 0)
-  const color = pct >= 100 ? '#E24B4A' : pct >= 80 ? '#F59E0B' : '#5B5EF4'
+  const color = pct >= 100 ? '#E24B4A' : pct >= 80 ? '#F59E0B' : '#6366F1'
   const isTrial = meter?.status === 'trial'
 
   function fmtTrialDate(ts) {
@@ -32,7 +32,7 @@ export function StorageMeter({ meter }) {
         </span>
         <span style={{ fontFamily:"'JetBrains Mono',monospace" }}>₹{meter?.estimatedCost?.toFixed(2) || '0'}</span>
       </div>
-      <div style={{ height:3, background:'#1E1E32', borderRadius:99 }}>
+      <div style={{ height:3, background:'rgba(255,255,255,.07)', borderRadius:99 }}>
         <div style={{ width:`${pct}%`, height:'100%', background:color,
                        borderRadius:99, transition:'width .3s' }} />
       </div>
@@ -45,7 +45,7 @@ export function StorageMeter({ meter }) {
           Pay as you go · Wallet: ₹{meter?.walletBalance?.toFixed(2) || '0'}
         </div>
       ) : (
-        <div style={{ fontSize:11, color:'#55556A', marginTop:4 }}>
+        <div style={{ fontSize:11, color:'#7A7AAA', marginTop:4 }}>
           Wallet: ₹{meter?.walletBalance?.toFixed(2) || '0'}
         </div>
       )}
@@ -90,18 +90,18 @@ export function UploadZone({ children, onDrop, active }) {
   return (
     <div
       style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden',
-               position: 'relative' }}
+               position: 'relative', background: '#050510' }}
       onDragOver={handleDragOver}
       onDragLeave={handleDragLeave}
       onDrop={handleDrop}
     >
       {children}
       {dragging && (
-        <div style={{ position:'absolute', inset:0, background:'rgba(91,94,244,0.06)',
+        <div style={{ position:'absolute', inset:0, background:'rgba(99,102,241,0.06)',
                        border:'2px dashed #5B5EF4', borderRadius:12, zIndex:50,
                        display:'flex', alignItems:'center', justifyContent:'center',
                        pointerEvents:'none', backdropFilter:'blur(2px)' }}>
-          <div style={{ fontSize:18, fontWeight:700, color:'#5B5EF4', letterSpacing:'-0.01em' }}>
+          <div style={{ fontSize:18, fontWeight:700, color:'#6366F1', letterSpacing:'-0.01em' }}>
             Drop files to upload
           </div>
         </div>

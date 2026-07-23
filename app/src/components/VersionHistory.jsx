@@ -3,16 +3,16 @@ import { api } from '../lib/api.js'
 import { useToastMethods } from './Toast.jsx'
 
 const D = {
-  bg:      '#07070D',
-  bg2:     '#0F0F1A',
-  bg3:     '#11111E',
-  border:  '#1E1E32',
-  border2: '#252540',
-  ind:     '#5B5EF4',
+  bg:      '#08081A',
+  bg2:     '#0D0D22',
+  bg3:     '#111130',
+  border:  'rgba(255,255,255,.07)',
+  border2: 'rgba(255,255,255,.14)',
+  ind:     '#6366F1',
   red:     '#E24B4A',
-  textP:   '#EEEEF8',
+  textP:   '#EDEDFF',
   textS:   '#8888AA',
-  textT:   '#55556A',
+  textT:   '#7A7AAA',
 }
 
 function fmtSize(bytes) {
@@ -168,8 +168,8 @@ export default function VersionHistory({ file, onClose, onRestored, onPreview })
                           Version {v.version_number}
                         </span>
                         {isCurrent && (
-                          <span style={{ fontSize:10, fontWeight:600, background:'rgba(91,94,244,0.15)',
-                                          color:D.ind, border:`1px solid rgba(91,94,244,0.3)`,
+                          <span style={{ fontSize:10, fontWeight:600, background:'rgba(99,102,241,0.15)',
+                                          color:D.ind, border:`1px solid rgba(99,102,241,0.3)`,
                                           padding:'1px 7px', borderRadius:99, letterSpacing:'.04em' }}>
                             Current
                           </span>
@@ -205,7 +205,7 @@ export default function VersionHistory({ file, onClose, onRestored, onPreview })
 
                 {showRestoreConfirm && (
                   <div style={{ marginTop:10, padding:'12px 14px',
-                                 background:'rgba(91,94,244,0.06)', border:`1px solid rgba(91,94,244,0.2)`,
+                                 background:'rgba(99,102,241,0.06)', border:`1px solid rgba(99,102,241,0.2)`,
                                  borderRadius:8 }}>
                     <div style={{ fontSize:12, color:D.textS, marginBottom:10 }}>
                       Restore Version {v.version_number}? Current file will be replaced.

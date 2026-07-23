@@ -3,7 +3,7 @@ import React, { useState } from 'react'
 const FILES_URL = import.meta.env.VITE_FILES_URL || 'https://files.datadrop.co.in'
 
 // ── File type SVG icons ──────────────────────────────────────────────────────
-function IcoImg()    { return <svg width={32} height={32} viewBox="0 0 32 32" fill="none"><rect x="3" y="5" width="26" height="22" rx="2.5" stroke="#5B5EF4" strokeWidth="1.5"/><circle cx="10.5" cy="12" r="2.5" fill="#5B5EF4" opacity=".5"/><path d="M3 22l7-7 5 5 4-4 10 8" stroke="#5B5EF4" strokeWidth="1.5" strokeLinejoin="round"/></svg> }
+function IcoImg()    { return <svg width={32} height={32} viewBox="0 0 32 32" fill="none"><rect x="3" y="5" width="26" height="22" rx="2.5" stroke="#6366F1" strokeWidth="1.5"/><circle cx="10.5" cy="12" r="2.5" fill="#6366F1" opacity=".5"/><path d="M3 22l7-7 5 5 4-4 10 8" stroke="#6366F1" strokeWidth="1.5" strokeLinejoin="round"/></svg> }
 function IcoVideo()  { return <svg width={32} height={32} viewBox="0 0 32 32" fill="none"><rect x="3" y="6" width="20" height="20" rx="2.5" stroke="#E24B4A" strokeWidth="1.5"/><path d="M23 12l6-4v16l-6-4V12z" stroke="#E24B4A" strokeWidth="1.5" strokeLinejoin="round"/><path d="M10 13l8 3-8 3V13z" fill="#E24B4A" opacity=".6"/></svg> }
 function IcoAudio()  { return <svg width={32} height={32} viewBox="0 0 32 32" fill="none"><path d="M9 10h14M9 16h10M9 22h7" stroke="#00C27C" strokeWidth="2" strokeLinecap="round"/><circle cx="22" cy="22" r="4" stroke="#00C27C" strokeWidth="1.5"/><path d="M26 18V10l-6 2v8" stroke="#00C27C" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg> }
 function IcoPDF()    { return <svg width={32} height={32} viewBox="0 0 32 32" fill="none"><path d="M8 3h12l9 9v18a1 1 0 0 1-1 1H8a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1z" stroke="#E24B4A" strokeWidth="1.5" strokeLinejoin="round"/><path d="M20 3v9h9" stroke="#E24B4A" strokeWidth="1.5" strokeLinejoin="round"/><path d="M12 17h8M12 21h6" stroke="#E24B4A" strokeWidth="1.5" strokeLinecap="round" opacity=".6"/></svg> }
@@ -11,8 +11,8 @@ function IcoWord()   { return <svg width={32} height={32} viewBox="0 0 32 32" fi
 function IcoSheet()  { return <svg width={32} height={32} viewBox="0 0 32 32" fill="none"><path d="M8 3h12l9 9v18a1 1 0 0 1-1 1H8a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1z" stroke="#00C27C" strokeWidth="1.5" strokeLinejoin="round"/><path d="M20 3v9h9" stroke="#00C27C" strokeWidth="1.5" strokeLinejoin="round"/><rect x="11" y="16" width="10" height="9" rx="1" stroke="#00C27C" strokeWidth="1.2" opacity=".6"/><path d="M16 16v9M11 20.5h10" stroke="#00C27C" strokeWidth="1.2" opacity=".6"/></svg> }
 function IcoZip()    { return <svg width={32} height={32} viewBox="0 0 32 32" fill="none"><path d="M8 3h12l9 9v18a1 1 0 0 1-1 1H8a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1z" stroke="#F59E0B" strokeWidth="1.5" strokeLinejoin="round"/><path d="M20 3v9h9" stroke="#F59E0B" strokeWidth="1.5" strokeLinejoin="round"/><path d="M14 13h4M14 17h4M14 21h4M14 25h4" stroke="#F59E0B" strokeWidth="1.5" strokeLinecap="round" strokeDasharray="2 2" opacity=".7"/></svg> }
 function IcoFile()   { return <svg width={32} height={32} viewBox="0 0 32 32" fill="none"><path d="M8 3h12l9 9v18a1 1 0 0 1-1 1H8a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1z" stroke="#8888AA" strokeWidth="1.5" strokeLinejoin="round"/><path d="M20 3v9h9" stroke="#8888AA" strokeWidth="1.5" strokeLinejoin="round"/></svg> }
-function IcoFolder() { return <svg width={22} height={22} viewBox="0 0 22 22" fill="none"><path d="M2 6a2 2 0 0 1 2-2h4.5l2 2H18a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V6z" fill="#5B5EF4" fillOpacity=".15" stroke="#5B5EF4" strokeWidth="1.3" strokeLinejoin="round"/></svg> }
-function IcoVaultLock(){ return <svg width={28} height={28} viewBox="0 0 28 28" fill="none"><rect x="4" y="12" width="20" height="13" rx="2" fill="#5B5EF4" fillOpacity=".1" stroke="#5B5EF4" strokeWidth="1.4"/><path d="M9 12V9a5 5 0 0 1 10 0v3" stroke="#5B5EF4" strokeWidth="1.4" strokeLinecap="round"/><circle cx="14" cy="18.5" r="2.5" fill="#5B5EF4"/></svg> }
+function IcoFolder() { return <svg width={22} height={22} viewBox="0 0 22 22" fill="none"><path d="M2 6a2 2 0 0 1 2-2h4.5l2 2H18a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V6z" fill="#6366F1" fillOpacity=".15" stroke="#6366F1" strokeWidth="1.3" strokeLinejoin="round"/></svg> }
+function IcoVaultLock(){ return <svg width={28} height={28} viewBox="0 0 28 28" fill="none"><rect x="4" y="12" width="20" height="13" rx="2" fill="#6366F1" fillOpacity=".1" stroke="#6366F1" strokeWidth="1.4"/><path d="M9 12V9a5 5 0 0 1 10 0v3" stroke="#6366F1" strokeWidth="1.4" strokeLinecap="round"/><circle cx="14" cy="18.5" r="2.5" fill="#6366F1"/></svg> }
 
 // ── Context menu SVG icons ────────────────────────────────────────────────
 function MI_Open()      { return <svg width={14} height={14} viewBox="0 0 14 14" fill="none"><path d="M2 7h10M7 2l5 5-5 5" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"/></svg> }
@@ -59,15 +59,15 @@ function fmtDate(ts) {
 
 // ── Dark design tokens ────────────────────────────────────────────────────
 const D = {
-  card:   '#11111E',
-  border: '#1E1E32',
+  card:   '#111130',
+  border: 'rgba(255,255,255,.07)',
   hover:  '#1A1A2E',
-  textP:  '#EEEEF8',
+  textP:  '#EDEDFF',
   textS:  '#8888AA',
-  textT:  '#55556A',
-  indigo: '#5B5EF4',
+  textT:  '#7A7AAA',
+  indigo: '#6366F1',
   red:    '#E24B4A',
-  menu:   '#0F0F1A',
+  menu:   '#0D0D22',
 }
 
 export default function FileGrid({ files, folders, view, loading, onOpenFolder,
@@ -77,8 +77,11 @@ export default function FileGrid({ files, folders, view, loading, onOpenFolder,
     onMoveToVault, onMoveFolderToVault, onMoveFolder, onMoveOutOfVault,
     onEditShare, onOpenSharedFolder, onReport, onAcceptMove, onConfirmReceipt, onDismissShare }) {
 
+  const anySelected = selectedFileIds.size > 0 || selectedFolderIds.size > 0
+
   const [menuId,          setMenuId]          = useState(null)
   const [folderMenuId,    setFolderMenuId]    = useState(null)
+  const [folderHoverId,   setFolderHoverId]   = useState(null)
   const [renamingFolder,  setRenamingFolder]  = useState(null)
   const [folderRenameVal, setFolderRenameVal] = useState('')
 
@@ -129,14 +132,14 @@ export default function FileGrid({ files, folders, view, loading, onOpenFolder,
                              border:`1px solid ${sel ? D.indigo : D.border}`,
                              borderRadius:10, fontSize:13, fontWeight:500, position:'relative',
                              cursor:'pointer', transition:'border-color .15s, background .15s' }}
-                  onMouseEnter={e=>{ if(!sel){ e.currentTarget.style.borderColor='#252540'; e.currentTarget.style.background=D.hover } }}
-                  onMouseLeave={e=>{ if(!sel){ e.currentTarget.style.borderColor=D.border; e.currentTarget.style.background=D.card } }}>
+                  onMouseEnter={e=>{ setFolderHoverId(f.id); if(!sel){ e.currentTarget.style.borderColor='rgba(255,255,255,.14)'; e.currentTarget.style.background=D.hover } }}
+                  onMouseLeave={e=>{ setFolderHoverId(null); if(!sel){ e.currentTarget.style.borderColor=D.border; e.currentTarget.style.background=D.card } }}>
 
                   {onToggleFolder && (
                     <div onClick={e=>{ e.stopPropagation(); onToggleFolder(f.id) }}
                       style={{ width:16, height:16, flexShrink:0, borderRadius:4, cursor:'pointer',
                                 background:sel ? D.indigo : 'transparent',
-                                border:`1.5px solid ${sel ? D.indigo : '#55556A'}`,
+                                border:`1.5px solid ${sel ? D.indigo : '#7A7AAA'}`,
                                 display:'flex', alignItems:'center', justifyContent:'center', transition:'all .15s' }}>
                       {sel && <svg width={10} height={10} viewBox="0 0 10 10" fill="none"><path d="M2 5.5l2.5 2.5L8 3" stroke="#fff" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>}
                     </div>
@@ -152,18 +155,20 @@ export default function FileGrid({ files, folders, view, loading, onOpenFolder,
                     {f.name}
                   </span>
 
-                  <button onClick={e=>{ e.stopPropagation(); setFolderMenuId(folderMenuId===f.id ? null : f.id) }}
-                    style={{ background:'none', border:'none', cursor:'pointer', padding:'2px 4px',
-                              color:D.textT, flexShrink:0, borderRadius:4,
-                              display:'flex', alignItems:'center', justifyContent:'center' }}
-                    onMouseEnter={e=>e.currentTarget.style.color=D.textP}
-                    onMouseLeave={e=>e.currentTarget.style.color=D.textT}>
-                    <svg width={14} height={14} viewBox="0 0 14 14" fill="none">
-                      <circle cx="7" cy="3" r="1.1" fill="currentColor"/>
-                      <circle cx="7" cy="7" r="1.1" fill="currentColor"/>
-                      <circle cx="7" cy="11" r="1.1" fill="currentColor"/>
-                    </svg>
-                  </button>
+                  {!anySelected && (folderHoverId === f.id || folderMenuId === f.id) && (
+                    <button onClick={e=>{ e.stopPropagation(); setFolderMenuId(folderMenuId===f.id ? null : f.id) }}
+                      style={{ background:'none', border:'none', cursor:'pointer', padding:'2px 4px',
+                                color:D.textT, flexShrink:0, borderRadius:4,
+                                display:'flex', alignItems:'center', justifyContent:'center' }}
+                      onMouseEnter={e=>e.currentTarget.style.color=D.textP}
+                      onMouseLeave={e=>e.currentTarget.style.color=D.textT}>
+                      <svg width={14} height={14} viewBox="0 0 14 14" fill="none">
+                        <circle cx="7" cy="3" r="1.1" fill="currentColor"/>
+                        <circle cx="7" cy="7" r="1.1" fill="currentColor"/>
+                        <circle cx="7" cy="11" r="1.1" fill="currentColor"/>
+                      </svg>
+                    </button>
+                  )}
 
                   {folderMenuId === f.id && (
                     <FolderContextMenu f={f}
@@ -193,6 +198,7 @@ export default function FileGrid({ files, folders, view, loading, onOpenFolder,
           <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill, minmax(160px, 1fr))', gap:8 }}>
             {files.map(file => (
               <FileCard key={file.id} file={file} view={view}
+                anySelected={anySelected}
                 menuOpen={menuId === file.id}
                 onMenuToggle={() => setMenuId(menuId === file.id ? null : file.id)}
                 onPreview={() => { setMenuId(null); onPreview(file) }}
@@ -225,27 +231,27 @@ export default function FileGrid({ files, folders, view, loading, onOpenFolder,
             onClick={() => setRenamingFolder(null)} />
           <div style={{ position:'fixed', inset:0, zIndex:201, display:'flex',
                           alignItems:'center', justifyContent:'center', padding:20 }}>
-            <div style={{ background:'#0F0F1A', border:'1px solid #1E1E32', borderRadius:16,
+            <div style={{ background:'#0D0D22', border:'1px solid rgba(255,255,255,.07)', borderRadius:16,
                            padding:28, width:'100%', maxWidth:360,
                            boxShadow:'0 24px 64px rgba(0,0,0,.6)' }}>
-              <h3 style={{ fontSize:16, fontWeight:700, color:'#EEEEF8', marginBottom:16 }}>Rename folder</h3>
+              <h3 style={{ fontSize:16, fontWeight:700, color:'#EDEDFF', marginBottom:16 }}>Rename folder</h3>
               <input autoFocus value={folderRenameVal} onChange={e=>setFolderRenameVal(e.target.value)}
                 onKeyDown={e=>{
                   if (e.key==='Enter' && folderRenameVal.trim()) { onRenameFolder(renamingFolder, folderRenameVal.trim()); setRenamingFolder(null) }
                   if (e.key==='Escape') setRenamingFolder(null)
                 }}
-                style={{ width:'100%', padding:'10px 14px', border:'1px solid #1E1E32', borderRadius:10,
-                           fontSize:14, outline:'none', background:'#161625', color:'#EEEEF8',
+                style={{ width:'100%', padding:'10px 14px', border:'1px solid rgba(255,255,255,.07)', borderRadius:10,
+                           fontSize:14, outline:'none', background:'#161625', color:'#EDEDFF',
                            boxSizing:'border-box', marginBottom:16 }} />
               <div style={{ display:'flex', gap:10 }}>
                 <button onClick={() => { if (folderRenameVal.trim()) { onRenameFolder(renamingFolder, folderRenameVal.trim()); setRenamingFolder(null) } }}
-                  style={{ flex:1, padding:10, background:'#5B5EF4', color:'#fff', border:'none',
+                  style={{ flex:1, padding:10, background:'#6366F1', color:'#fff', border:'none',
                              borderRadius:10, fontWeight:600, cursor:'pointer', fontSize:14 }}>
                   Rename
                 </button>
                 <button onClick={() => setRenamingFolder(null)}
                   style={{ flex:1, padding:10, background:'#161625', color:'#8888AA',
-                             border:'1px solid #1E1E32', borderRadius:10, fontWeight:600, cursor:'pointer', fontSize:14 }}>
+                             border:'1px solid rgba(255,255,255,.07)', borderRadius:10, fontWeight:600, cursor:'pointer', fontSize:14 }}>
                   Cancel
                 </button>
               </div>
@@ -289,23 +295,24 @@ function CMenuItem({ Icon, label, onClick, danger }) {
   )
 }
 
-function FileCard({ file, view, menuOpen, onMenuToggle, onPreview, onShare, onDelete, onRename, onVersions, onRevokeShare, onEditShare, onOpenSharedFolder, onMoveToVault, onMoveOutOfVault, onReport, onAcceptMove, onConfirmReceipt, onDismissShare, selected, onToggleSelect }) {
+function FileCard({ file, view, menuOpen, onMenuToggle, onPreview, onShare, onDelete, onRename, onVersions, onRevokeShare, onEditShare, onOpenSharedFolder, onMoveToVault, onMoveOutOfVault, onReport, onAcceptMove, onConfirmReceipt, onDismissShare, selected, onToggleSelect, anySelected }) {
   const filename = file.folder_name || file.filename || file.name || 'Untitled'
   const isFolder = file.item_type === 'folder'
+  const [isHovered, setIsHovered] = useState(false)
 
   return (
     <div style={{ background:D.card, border:`1px solid ${selected ? D.indigo : D.border}`,
                    borderRadius:10, position:'relative', cursor:'pointer',
                    transition:'border-color .15s, box-shadow .15s, background .15s' }}
-      onMouseEnter={e=>{ if(!selected){ e.currentTarget.style.borderColor='#252540'; e.currentTarget.style.background='#13131F' } }}
-      onMouseLeave={e=>{ if(!selected){ e.currentTarget.style.borderColor=D.border; e.currentTarget.style.background=D.card } }}>
+      onMouseEnter={e=>{ setIsHovered(true); if(!selected){ e.currentTarget.style.borderColor='rgba(255,255,255,.14)'; e.currentTarget.style.background='#1A1A2E' } }}
+      onMouseLeave={e=>{ setIsHovered(false); if(!selected){ e.currentTarget.style.borderColor=D.border; e.currentTarget.style.background=D.card } }}>
 
       {/* Selection checkbox */}
       {onToggleSelect && (
         <div onClick={e=>{ e.stopPropagation(); onToggleSelect() }}
           style={{ position:'absolute', top:8, left:8, width:18, height:18, zIndex:5, borderRadius:4,
-                    background:selected ? D.indigo : 'rgba(15,15,26,0.85)',
-                    border:`1.5px solid ${selected ? D.indigo : '#55556A'}`,
+                    background:selected ? D.indigo : 'rgba(13,13,34,0.85)',
+                    border:`1.5px solid ${selected ? D.indigo : '#7A7AAA'}`,
                     cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center',
                     transition:'all .15s', backdropFilter:'blur(4px)' }}>
           {selected && <svg width={10} height={10} viewBox="0 0 10 10" fill="none"><path d="M2 5.5l2.5 2.5L8 3" stroke="#fff" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>}
@@ -313,14 +320,14 @@ function FileCard({ file, view, menuOpen, onMenuToggle, onPreview, onShare, onDe
       )}
 
       {/* Thumbnail / icon area */}
-      <div style={{ height:100, background:'#0C0C18', display:'flex', alignItems:'center', justifyContent:'center',
+      <div style={{ height:100, background:'#0D0D22', display:'flex', alignItems:'center', justifyContent:'center',
                      overflow:'hidden', position:'relative', borderTopLeftRadius:10, borderTopRightRadius:10 }}
         onClick={isFolder && onOpenSharedFolder ? onOpenSharedFolder : onPreview}>
 
         {isFolder ? (
           <svg width={40} height={40} viewBox="0 0 22 22" fill="none">
             <path d="M2 6a2 2 0 0 1 2-2h4.5l2 2H18a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V6z"
-              fill="#5B5EF4" fillOpacity=".2" stroke="#5B5EF4" strokeWidth="1.3" strokeLinejoin="round"/>
+              fill="#6366F1" fillOpacity=".2" stroke="#6366F1" strokeWidth="1.3" strokeLinejoin="round"/>
           </svg>
         ) : (file.is_vault && !file.thumb_data?.startsWith('data:')) ? (
           <IcoVaultLock />
@@ -348,7 +355,7 @@ function FileCard({ file, view, menuOpen, onMenuToggle, onPreview, onShare, onDe
                        display:'flex', alignItems:'center', gap:4 }}>
           <span style={{ overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{filename}</span>
           {(file.version_number > 1 || file.archived_count > 0) && (
-            <span style={{ flexShrink:0, background:'rgba(91,94,244,0.2)', color:D.indigo,
+            <span style={{ flexShrink:0, background:'rgba(99,102,241,0.2)', color:D.indigo,
                             fontSize:9, fontWeight:700, padding:'1px 5px', borderRadius:100 }}>
               v{file.version_number || 1}
             </span>
@@ -374,23 +381,25 @@ function FileCard({ file, view, menuOpen, onMenuToggle, onPreview, onShare, onDe
         )}
       </div>
 
-      {/* 3-dot menu button */}
-      <button onClick={e=>{ e.stopPropagation(); onMenuToggle() }}
-        style={{ position:'absolute', top:8, right:8, background:'rgba(15,15,26,0.85)',
-                  border:`1px solid ${D.border}`, borderRadius:7, width:28, height:28,
-                  cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center',
-                  color:D.textS, backdropFilter:'blur(4px)', transition:'color .1s,border-color .1s' }}
-        onMouseEnter={e=>{ e.currentTarget.style.color=D.textP; e.currentTarget.style.borderColor='#252540' }}
-        onMouseLeave={e=>{ e.currentTarget.style.color=D.textS; e.currentTarget.style.borderColor=D.border }}>
-        <svg width={14} height={14} viewBox="0 0 14 14" fill="none">
-          <circle cx="7" cy="3" r="1.1" fill="currentColor"/>
-          <circle cx="7" cy="7" r="1.1" fill="currentColor"/>
-          <circle cx="7" cy="11" r="1.1" fill="currentColor"/>
-        </svg>
-      </button>
+      {/* 3-dot menu button — hidden during selection, hover-only otherwise */}
+      {!anySelected && (isHovered || menuOpen) && (
+        <button onClick={e=>{ e.stopPropagation(); onMenuToggle() }}
+          style={{ position:'absolute', top:8, right:8, background:'rgba(13,13,34,0.85)',
+                    border:`1px solid ${D.border}`, borderRadius:7, width:28, height:28,
+                    cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center',
+                    color:D.textS, backdropFilter:'blur(4px)', transition:'color .1s,border-color .1s' }}
+          onMouseEnter={e=>{ e.currentTarget.style.color=D.textP; e.currentTarget.style.borderColor='rgba(255,255,255,.14)' }}
+          onMouseLeave={e=>{ e.currentTarget.style.color=D.textS; e.currentTarget.style.borderColor=D.border }}>
+          <svg width={14} height={14} viewBox="0 0 14 14" fill="none">
+            <circle cx="7" cy="3" r="1.1" fill="currentColor"/>
+            <circle cx="7" cy="7" r="1.1" fill="currentColor"/>
+            <circle cx="7" cy="11" r="1.1" fill="currentColor"/>
+          </svg>
+        </button>
+      )}
 
       {menuOpen && (
-        <ContextMenu view={view} isVault={file.is_vault} itemType={file.item_type}
+        <ContextMenu view={view} isVault={!!file.is_vault} itemType={file.item_type}
           onPreview={onPreview} onShare={onShare} onDelete={onDelete}
           onRename={onRename} onVersions={onVersions}
           onRevokeShare={onRevokeShare} onEditShare={onEditShare}
@@ -441,9 +450,9 @@ function ContextMenu({ view, isVault, itemType, onPreview, onShare, onDelete, on
             <CMenuItem Icon={MI_Open}     label="Open"             onClick={onPreview} />
             <CMenuItem Icon={MI_Rename}   label="Rename"           onClick={onRename} />
             {!isVault && <CMenuItem Icon={MI_Share}    label="Share"            onClick={onShare} />}
+            {!isVault && onMoveToVault && <CMenuItem Icon={MI_Vault} label="Move to Vault" onClick={onMoveToVault} />}
+            {isVault  && onMoveOutOfVault && <CMenuItem Icon={MI_MoveOut} label="Move to Files" onClick={onMoveOutOfVault} />}
             <CMenuItem Icon={MI_Versions} label="Version history"  onClick={onVersions} />
-            {onMoveToVault    && <CMenuItem Icon={MI_Vault} label="Move to Vault"    onClick={onMoveToVault} />}
-            {onMoveOutOfVault && <CMenuItem Icon={MI_Vault} label="Move out of Vault" onClick={onMoveOutOfVault} />}
             <CMenuItem Icon={MI_Delete}   label="Delete"           onClick={onDelete} danger />
           </>
         )}

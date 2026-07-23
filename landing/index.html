@@ -1,0 +1,965 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DataDrop — Cloud storage that charges fairly</title>
+<meta name="description" content="Cloud storage that charges only for the storage you actually keep — billed by the second. No fixed plans, no wasted spend. Zero-knowledge Vault and encrypted team Workspaces included. 15-day free trial, no credit card.">
+<meta name="robots" content="index, follow">
+<meta name="theme-color" content="#08081A">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="DataDrop">
+<meta name="application-name" content="DataDrop">
+<link rel="canonical" href="https://datadrop.co.in/">
+<link rel="manifest" href="/manifest.webmanifest">
+<link rel="icon" type="image/svg+xml" href="/favicon.svg">
+<link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png">
+<link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
+<meta name="msapplication-TileColor" content="#6366F1">
+<meta name="msapplication-config" content="/browserconfig.xml">
+
+<!-- Open Graph -->
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="DataDrop">
+<meta property="og:url" content="https://datadrop.co.in/">
+<meta property="og:title" content="DataDrop — Cloud storage that charges fairly">
+<meta property="og:description" content="Pay only for the storage you keep, billed by the second. Zero-knowledge Vault. Encrypted team Workspaces. 15-day free trial. No credit card required.">
+<meta property="og:image" content="https://datadrop.co.in/og.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="DataDrop — Cloud storage that charges fairly">
+<meta property="og:locale" content="en_IN">
+
+<!-- Twitter -->
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="DataDrop — Cloud storage that charges fairly">
+<meta name="twitter:description" content="Pay only for the storage you keep. No plans. No waste. 15-day free trial, no credit card.">
+<meta name="twitter:image" content="https://datadrop.co.in/og.png">
+<meta name="twitter:image:alt" content="DataDrop — Cloud storage that charges fairly">
+
+<!-- Fonts -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="preload" href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@600;700;800&family=Inter:wght@400;500&family=JetBrains+Mono:wght@600;700&display=swap" as="style" onload="this.onload=null;this.rel='stylesheet'">
+<noscript><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@600;700;800&family=Inter:wght@400;500&family=JetBrains+Mono:wght@600;700&display=swap"></noscript>
+
+<!-- JSON-LD Structured Data -->
+<script type="application/ld+json">
+[
+  {
+    "@context":"https://schema.org",
+    "@type":"Organization",
+    "name":"DataDrop",
+    "url":"https://datadrop.co.in",
+    "logo":{"@type":"ImageObject","url":"https://datadrop.co.in/favicon.svg","width":512,"height":512},
+    "contactPoint":{"@type":"ContactPoint","contactType":"customer support","availableLanguage":"English"},
+    "address":{"@type":"PostalAddress","addressCountry":"IN"},
+    "sameAs":["https://app.datadrop.co.in"]
+  },
+  {
+    "@context":"https://schema.org",
+    "@type":"WebSite",
+    "name":"DataDrop",
+    "url":"https://datadrop.co.in"
+  },
+  {
+    "@context":"https://schema.org",
+    "@type":"SoftwareApplication",
+    "name":"DataDrop",
+    "applicationCategory":"BusinessApplication",
+    "applicationSubCategory":"Cloud Storage",
+    "operatingSystem":"Web",
+    "url":"https://datadrop.co.in",
+    "offers":{"@type":"Offer","price":"0","priceCurrency":"INR","description":"15-day free trial — 5 GB included, no credit card required"},
+    "description":"Pay-as-you-go cloud storage with byte-second billing, zero-knowledge Vault, and encrypted team Workspaces.",
+    "screenshot":{"@type":"ImageObject","url":"https://datadrop.co.in/og.png","width":1200,"height":630},
+    "featureList":["Pay only for storage used","Zero-knowledge Vault","Encrypted team Workspaces","UPI AutoPay","Byte-second billing"]
+  }
+]
+</script>
+
+<style>
+/* ═══════════════════════════════════
+   DESIGN TOKENS
+═══════════════════════════════════ */
+:root{
+  --bg:  #08081A;
+  --bg2: #0D0D22;
+  --bg3: #111130;
+  --bd:  rgba(255,255,255,.07);
+  --bd2: rgba(255,255,255,.12);
+  --ind: #6366F1;
+  --ind2:#818CF8;
+  --tp:  #EDEDFF;  /* primary text — high contrast */
+  --ts:  #8888AA;  /* secondary text — 6:1 contrast ✓ WCAG AA */
+  --tt:  #7A7AAA;  /* tertiary text — 4.6:1 contrast ✓ WCAG AA */
+  --grn: #34D399;
+  --cyn: #06B6D4;
+  --r:   12px;
+  --rL:  18px;
+  --max: 1080px;
+  --gap: 24px;
+}
+
+/* ═══════════════════════════════════
+   RESET
+═══════════════════════════════════ */
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html{scroll-behavior:smooth;-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale;font-size:16px}
+body{background:var(--bg);color:var(--tp);font-family:'Inter',system-ui,-apple-system,sans-serif;overflow-x:hidden;line-height:1.6}
+:focus-visible{outline:2px solid var(--ind2);outline-offset:3px;border-radius:4px}
+img,svg{display:block;max-width:100%}
+a,button{cursor:pointer}
+h1,h2,h3{font-family:'Space Grotesk',sans-serif;font-weight:800;letter-spacing:-.04em;line-height:1.1;color:var(--tp)}
+.sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
+
+/* ═══════════════════════════════════
+   MOTION
+═══════════════════════════════════ */
+@keyframes fadeUp{from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:none}}
+@keyframes pulse{0%,100%{opacity:.5}50%{opacity:1}}
+.fade-up{opacity:0;transform:translateY(16px);transition:opacity .55s ease,transform .55s ease}
+.fade-up.in{opacity:1;transform:none}
+.d1{transition-delay:.08s}.d2{transition-delay:.16s}.d3{transition-delay:.26s}.d4{transition-delay:.36s}
+@media(prefers-reduced-motion:reduce){
+  *,*::before,*::after{animation:none!important;transition-duration:1ms!important}
+  html{scroll-behavior:auto}
+}
+
+/* ═══════════════════════════════════
+   LAYOUT
+═══════════════════════════════════ */
+.inner{max-width:var(--max);margin:0 auto;padding:0 var(--gap)}
+.section{padding:96px var(--gap)}
+.section-inner{max-width:var(--max);margin:0 auto}
+.eyebrow{font-size:11px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--ind);margin-bottom:14px}
+.h2{font-size:clamp(28px,3.5vw,44px);margin-bottom:10px}
+.lead{font-size:16px;color:var(--ts);line-height:1.7;max-width:520px}
+.rule{border:none;border-top:1px solid var(--bd);max-width:var(--max);margin:0 auto}
+.cta-pair{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+
+/* ═══════════════════════════════════
+   BUTTONS
+═══════════════════════════════════ */
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:7px;font-weight:600;border-radius:9px;text-decoration:none;transition:background .15s,box-shadow .15s,transform .1s,color .15s,border-color .15s;white-space:nowrap;line-height:1}
+.btn-primary{padding:0 24px;height:46px;font-size:15px;background:var(--ind);color:#fff;border:1.5px solid transparent}
+.btn-primary:hover{background:#7476F6;box-shadow:0 0 0 4px rgba(99,102,241,.22);transform:translateY(-1px)}
+.btn-primary.lg{height:52px;font-size:16px;padding:0 32px}
+.btn-secondary{padding:0 22px;height:46px;font-size:15px;background:transparent;color:var(--ts);border:1.5px solid var(--bd)}
+.btn-secondary:hover{color:var(--tp);border-color:var(--bd2);background:rgba(255,255,255,.03)}
+
+/* ═══════════════════════════════════
+   NAV
+═══════════════════════════════════ */
+.nav-wrap{position:fixed;top:0;left:0;right:0;z-index:100;padding:0 var(--gap);transition:background .3s,border-color .3s}
+.nav-wrap.stuck{background:rgba(8,8,26,.94);border-bottom:1px solid var(--bd);backdrop-filter:blur(24px);-webkit-backdrop-filter:blur(24px)}
+.nav{max-width:var(--max);margin:0 auto;height:58px;display:flex;align-items:center;gap:8px}
+.nav-brand{display:flex;align-items:center;gap:8px;text-decoration:none;flex-shrink:0}
+.nav-brand-name{font-family:'Space Grotesk',sans-serif;font-size:20px;font-weight:800;letter-spacing:-.04em;color:var(--tp)}
+.nav-brand-name span{color:var(--ind)}
+.nav-links{display:flex;align-items:center;gap:1px;margin-left:24px;flex:1}
+.nav-link{padding:6px 13px;font-size:13.5px;font-weight:500;color:var(--ts);border-radius:7px;text-decoration:none;transition:color .15s,background .15s}
+.nav-link:hover{color:var(--tp);background:rgba(255,255,255,.05)}
+.nav-end{display:flex;align-items:center;gap:8px;flex-shrink:0}
+.nav-sign{padding:6px 14px;font-size:13.5px;font-weight:500;color:var(--ts);text-decoration:none;border-radius:7px;transition:color .15s,background .15s}
+.nav-sign:hover{color:var(--tp);background:rgba(255,255,255,.05)}
+
+/* ═══════════════════════════════════
+   HERO
+═══════════════════════════════════ */
+.hero{min-height:100svh;display:flex;align-items:center;padding:72px var(--gap) 64px;position:relative;overflow:hidden}
+.hero::before{content:'';position:absolute;top:-10%;left:-5%;width:800px;height:800px;border-radius:50%;background:radial-gradient(circle,rgba(99,102,241,.08) 0%,transparent 65%);pointer-events:none}
+.hero-inner{max-width:var(--max);margin:0 auto;width:100%;display:grid;grid-template-columns:1fr 1.15fr;gap:56px;align-items:center}
+.hero-badge{display:inline-flex;align-items:center;gap:7px;padding:5px 13px;border-radius:20px;border:1px solid rgba(99,102,241,.22);background:rgba(99,102,241,.07);font-size:12px;font-weight:600;color:var(--ind2);letter-spacing:.04em;margin-bottom:28px;animation:fadeUp .5s ease both}
+.hero-badge-dot{width:5px;height:5px;border-radius:50%;background:var(--grn);animation:pulse 2.5s ease infinite}
+.hero h1{font-size:clamp(40px,5.5vw,68px);line-height:1.04;margin-bottom:22px;animation:fadeUp .6s .08s ease both}
+.hero h1 em{font-style:normal;background:linear-gradient(135deg,#818CF8,#A5B4FC 50%,#67E8F9);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
+.hero-sub{font-size:17px;color:var(--ts);line-height:1.7;margin-bottom:36px;max-width:416px;animation:fadeUp .6s .18s ease both}
+.hero-cta{animation:fadeUp .6s .28s ease both}
+.hero-trust{margin-top:28px;display:flex;flex-wrap:wrap;gap:8px;animation:fadeUp .6s .38s ease both;max-width:420px}
+.hero-chip{display:inline-flex;align-items:center;gap:7px;padding:6px 12px 6px 9px;border-radius:99px;background:rgba(99,102,241,.07);border:1px solid rgba(99,102,241,.22);font-size:12.5px;color:#A5B4FC;font-weight:500;letter-spacing:.01em;box-shadow:0 0 14px rgba(99,102,241,.12);white-space:nowrap}
+.hero-chip svg{flex-shrink:0}
+
+/* mockup */
+.hero-visual{position:relative;animation:fadeUp .8s .22s ease both}
+.mockup-glow{position:absolute;top:10%;left:10%;right:10%;bottom:5%;border-radius:20px;background:radial-gradient(ellipse,rgba(99,102,241,.16) 0%,transparent 70%);filter:blur(40px);pointer-events:none}
+.mockup{position:relative;z-index:1;border-radius:var(--rL);border:1px solid rgba(255,255,255,.13);overflow:hidden;box-shadow:0 48px 96px rgba(0,0,0,.7),0 12px 32px rgba(0,0,0,.4),0 0 0 1px rgba(255,255,255,.06);transform:perspective(1400px) rotateY(-8deg) rotateX(3deg) rotate(.5deg);transition:transform .4s ease}
+.mockup:hover{transform:perspective(1400px) rotateY(-4deg) rotateX(1.5deg) rotate(.2deg)}
+.mc{background:#0C0C22;padding:10px 14px;display:flex;align-items:center;gap:8px;border-bottom:1px solid rgba(255,255,255,.07)}
+.mc-dots{display:flex;gap:5px}
+.mc-dots span{width:10px;height:10px;border-radius:50%}
+.d-r{background:#FF5F57}.d-y{background:#FFBD2E}.d-g{background:#28C840}
+.mc-url{flex:1;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.07);border-radius:5px;height:22px;display:flex;align-items:center;justify-content:center;gap:5px;font-size:9.5px;color:rgba(255,255,255,.35)}
+.mapp{display:flex;height:370px;background:var(--bg)}
+.msb{width:148px;background:#0A0A1E;border-right:1px solid rgba(255,255,255,.06);padding:12px 8px;display:flex;flex-direction:column;gap:2px;flex-shrink:0}
+.msb-logo{display:flex;align-items:center;gap:6px;padding:4px 8px 10px;border-bottom:1px solid rgba(255,255,255,.05);margin-bottom:6px}
+.msb-logo-mark{width:18px;height:18px;border-radius:4px;background:var(--ind);display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.msb-logo-name{font-family:'Space Grotesk',sans-serif;font-size:11px;font-weight:700;color:rgba(255,255,255,.65);letter-spacing:-.02em}
+.msb-item{display:flex;align-items:center;gap:7px;padding:5px 8px;border-radius:6px;font-size:11px;font-weight:500;color:rgba(255,255,255,.38)}
+.msb-item.active{background:rgba(99,102,241,.14);color:var(--ind2)}
+.msb-space{flex:1}
+.msb-storage{padding:8px;margin-top:4px;border-top:1px solid rgba(255,255,255,.05)}
+.msb-storage-label{font-size:9px;color:rgba(255,255,255,.3);margin-bottom:5px;letter-spacing:.04em}
+.msb-bar{height:3px;background:rgba(255,255,255,.08);border-radius:2px;overflow:hidden;margin-bottom:4px}
+.msb-bar-fill{height:100%;width:34%;background:var(--ind);border-radius:2px}
+.msb-storage-val{font-size:9px;color:rgba(255,255,255,.25);font-family:'JetBrains Mono',monospace}
+.mmain{flex:1;overflow:hidden;display:flex;flex-direction:column}
+.mmain-head{display:flex;align-items:center;gap:8px;padding:12px 16px;border-bottom:1px solid rgba(255,255,255,.06)}
+.mmain-title{font-family:'Space Grotesk',sans-serif;font-size:13px;font-weight:700;color:rgba(255,255,255,.75);flex:1;letter-spacing:-.02em}
+.mmain-search{flex:1;max-width:130px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.07);border-radius:5px;height:22px;display:flex;align-items:center;padding:0 8px;gap:5px;font-size:9px;color:rgba(255,255,255,.2)}
+.mmain-upload{padding:0 10px;height:22px;background:var(--ind);border-radius:5px;font-size:9.5px;font-weight:600;color:#fff;border:none;flex-shrink:0;pointer-events:none}
+.mfiles{padding:12px 16px;display:grid;grid-template-columns:repeat(4,1fr);gap:8px;overflow:hidden}
+.mfile{background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.06);border-radius:7px;padding:8px 7px}
+.mfile-icon{width:24px;height:28px;border-radius:3px;margin-bottom:6px;display:flex;align-items:flex-end;justify-content:flex-end;padding:2px;font-size:5px;font-weight:800;font-family:'Inter',sans-serif}
+.folder{background:linear-gradient(135deg,#4338CA,#6366F1)}.pdf{background:linear-gradient(135deg,#DC2626,#EF4444);color:rgba(255,255,255,.8)}.fig{background:linear-gradient(135deg,#0D9488,#14B8A6);color:rgba(255,255,255,.8)}.img{background:linear-gradient(135deg,#D97706,#F59E0B);color:rgba(255,255,255,.8)}.txt{background:linear-gradient(135deg,#374151,#4B5563);color:rgba(255,255,255,.6)}
+.mfile-name{font-size:8.5px;font-weight:500;color:rgba(255,255,255,.55);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-bottom:2px}
+.mfile-size{font-size:7.5px;color:rgba(255,255,255,.22);font-family:'JetBrains Mono',monospace}
+
+/* ═══════════════════════════════════
+   WHY DATADROP
+═══════════════════════════════════ */
+.why-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-top:40px}
+.why-card{background:var(--bg2);border:1px solid var(--bd);border-radius:var(--r);padding:26px 22px 22px;transition:border-color .2s,background .2s;position:relative}
+.why-card::before{content:'';position:absolute;top:0;left:22px;right:22px;height:1px;background:linear-gradient(90deg,transparent,rgba(255,255,255,.05),transparent)}
+.why-card:hover{border-color:rgba(255,255,255,.13);background:var(--bg3)}
+.why-icon{width:36px;height:36px;border-radius:9px;border:1px solid var(--bd);background:rgba(255,255,255,.025);display:flex;align-items:center;justify-content:center;margin-bottom:16px}
+.why-card h3{font-size:15px;font-weight:700;letter-spacing:-.02em;color:var(--tp);margin-bottom:7px;line-height:1.3}
+.why-card p{font-size:13.5px;color:var(--ts);line-height:1.65}
+
+/* ═══════════════════════════════════
+   PRODUCT CARDS
+═══════════════════════════════════ */
+.products-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-top:48px}
+.pcard{background:var(--bg2);border:1px solid var(--bd);border-radius:var(--rL);padding:26px 22px 22px;transition:border-color .2s,background .2s;display:flex;flex-direction:column;gap:14px;position:relative}
+.pcard::before{content:'';position:absolute;top:0;left:22px;right:22px;height:1px;background:linear-gradient(90deg,transparent,rgba(255,255,255,.05),transparent)}
+.pcard:hover{border-color:rgba(255,255,255,.13);background:var(--bg3)}
+.pcard-icon{width:38px;height:38px;border-radius:9px;border:1px solid var(--bd);background:rgba(255,255,255,.025);display:flex;align-items:center;justify-content:center}
+.pcard-thumb{border-radius:8px;border:1px solid rgba(255,255,255,.06);overflow:hidden;background:var(--bg3);height:120px;position:relative}
+.thumb-files{display:grid;grid-template-columns:1fr 1fr;gap:5px;padding:10px}
+.thumb-file{background:rgba(255,255,255,.05);border-radius:5px;padding:6px 7px;font-size:9.5px;color:rgba(255,255,255,.4);display:flex;align-items:center;gap:5px;border:1px solid rgba(255,255,255,.06)}
+.thumb-dot{width:12px;height:14px;border-radius:3px;flex-shrink:0}
+.thumb-vault{display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;gap:10px}
+.thumb-vault-icon{width:40px;height:40px;border-radius:50%;border:1.5px solid rgba(6,182,212,.3);background:rgba(6,182,212,.06);display:flex;align-items:center;justify-content:center}
+.thumb-vault-label{font-size:10px;color:rgba(255,255,255,.35);letter-spacing:.01em}
+.thumb-ws{padding:10px 10px;display:flex;flex-direction:column;gap:7px}
+.thumb-ws-member{display:flex;align-items:center;gap:7px;font-size:9.5px;color:rgba(255,255,255,.4)}
+.thumb-ws-avatar{width:18px;height:18px;border-radius:50%;flex-shrink:0}
+.pcard h3{font-size:17px;letter-spacing:-.025em;margin-bottom:4px}
+.pcard-desc{font-size:13px;color:var(--ts);line-height:1.65;margin-bottom:2px}
+.pcard-section-label{font-size:10px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;color:var(--tt);margin:14px 0 8px}
+.pcard-list{list-style:none;padding:0;margin:0;display:flex;flex-direction:column;gap:7px}
+.pcard-list li{font-size:12.5px;color:var(--ts);line-height:1.5;display:flex;align-items:flex-start;gap:8px}
+.pcard-list li::before{content:'';width:4px;height:4px;border-radius:50%;background:var(--ind2);flex-shrink:0;margin-top:5px;opacity:.7}
+.pcard-list.feat li::before{background:var(--grn)}
+.pcard-feat-pills{display:flex;flex-wrap:wrap;gap:6px;margin:0;padding:0;list-style:none}
+.pcard-feat-pill{font-size:11.5px;padding:3px 10px;border-radius:20px;border:1px solid rgba(255,255,255,.09);background:rgba(255,255,255,.04);color:var(--ts)}
+.pcard-link{font-size:12.5px;font-weight:600;color:var(--ind2);text-decoration:none;display:inline-flex;align-items:center;gap:4px;margin-top:auto;transition:color .15s}
+.pcard-link:hover{color:#A5B4FC}
+.pcard-link:hover svg{transform:translateX(3px)}
+.pcard-link svg{transition:transform .15s}
+
+/* ═══════════════════════════════════
+   PRICING — Price left, bullets right
+═══════════════════════════════════ */
+.phc{display:grid;grid-template-columns:1fr 1fr;gap:0;align-items:stretch}
+.phc-left{display:flex;flex-direction:column;justify-content:center;padding-right:56px}
+.phc-left .eyebrow{margin-bottom:12px}
+.phc-left .h2{margin-bottom:28px}
+.phc-right{padding-left:56px;display:flex;align-items:center}
+.phc-chips{display:flex;flex-direction:column;gap:10px;width:100%}
+.phc-chips .hero-chip{white-space:normal;border-radius:12px;font-size:13px}
+.phc-price-row{display:flex;align-items:flex-start;line-height:1}
+.phc-currency{font-family:'Space Grotesk',sans-serif;font-weight:800;font-size:44px;color:var(--ind2);margin-top:14px;margin-right:2px;letter-spacing:-.02em}
+.phc-number{font-family:'JetBrains Mono',monospace;font-weight:700;font-size:120px;color:var(--tp);letter-spacing:-.04em;line-height:1}
+.phc-unit{font-size:17px;color:var(--ts);font-weight:500;letter-spacing:.02em;margin-top:14px}
+.phc-unit strong{color:var(--tp);font-weight:600}
+.phc-bullets{list-style:none;padding:0;margin:0;display:flex;flex-direction:column;gap:14px;width:100%}
+.phc-bullets li{font-size:15px;color:var(--ts);line-height:1.6;display:flex;align-items:flex-start;gap:13px}
+.phc-bullets li::before{content:'';width:7px;height:7px;border-radius:50%;background:var(--ind);flex-shrink:0;margin-top:7px;box-shadow:0 0 8px rgba(99,102,241,.55)}
+.proof-items{display:flex;flex-direction:column;gap:12px}
+.proof-item{background:var(--bg2);border:1px solid var(--bd);border-radius:var(--r);padding:18px 20px;display:flex;justify-content:space-between;align-items:center;gap:16px;transition:border-color .2s}
+.proof-item:hover{border-color:rgba(255,255,255,.13)}
+.proof-label{font-size:13px;color:var(--ts)}
+.proof-label strong{display:block;font-size:14px;font-weight:600;color:var(--tp);margin-bottom:3px}
+.proof-vals{text-align:right;flex-shrink:0}
+.proof-dd{font-family:'JetBrains Mono',monospace;font-size:22px;font-weight:700;color:var(--tp);line-height:1}
+.proof-vs{font-size:11px;color:var(--tt);margin-top:3px}
+.proof-vs s{text-decoration:line-through}
+.proof-save{font-size:11px;font-weight:600;color:var(--grn);margin-top:2px}
+.pricing-caveat{margin-top:14px;font-size:12.5px;color:var(--tt);font-style:italic}
+@media(max-width:720px){
+  .phc{grid-template-columns:1fr;gap:0}
+  .phc-left{padding-right:0;padding-bottom:40px}
+  .phc-right{padding-left:0;padding-top:0}
+  .phc-number{font-size:84px}
+  .phc-currency{font-size:32px;margin-top:10px}
+  .phc-unit{font-size:15px}
+}
+@media(max-width:420px){
+  .phc-number{font-size:68px}
+  .phc-currency{font-size:26px;margin-top:8px}
+}
+
+/* ═══════════════════════════════════
+   BILLING
+═══════════════════════════════════ */
+.billing-layout{display:grid;grid-template-columns:1fr 1fr;gap:56px;align-items:center;margin-top:48px}
+.billing-steps{display:flex;flex-direction:column}
+.bs{display:flex;gap:16px;padding:20px 0}
+.bs+.bs{border-top:1px solid var(--bd)}
+.bs-num{width:28px;height:28px;border-radius:50%;border:1.5px solid rgba(99,102,241,.35);background:rgba(99,102,241,.08);display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;font-family:'JetBrains Mono',monospace;color:var(--ind2);flex-shrink:0;margin-top:1px}
+.bs-title{font-family:'Space Grotesk',sans-serif;font-size:15px;font-weight:700;color:var(--tp);margin-bottom:4px;letter-spacing:-.02em}
+.bs-desc{font-size:13.5px;color:var(--ts);line-height:1.65}
+.invoice{background:var(--bg2);border:1px solid var(--bd);border-radius:var(--rL);overflow:hidden}
+.inv-top{padding:18px 22px 14px;border-bottom:1px solid var(--bd)}
+.inv-label{font-size:10px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--tt);margin-bottom:4px}
+.inv-period{font-size:13px;color:var(--ts)}
+.inv-rows{padding:4px 0}
+.inv-row{display:flex;justify-content:space-between;align-items:center;padding:9px 22px;font-size:13px}
+.inv-row-label{color:var(--ts)}
+.inv-row-label small{color:var(--tt);font-size:11px;margin-left:4px}
+.inv-row-val{font-family:'JetBrains Mono',monospace;font-size:13px;font-weight:600;color:var(--tp)}
+.inv-row-val.free{color:var(--grn)}
+.inv-total{display:flex;justify-content:space-between;align-items:center;padding:16px 22px;border-top:1px solid var(--bd)}
+.inv-total-label{font-size:13px;font-weight:600;color:var(--tp)}
+.inv-total-val{font-family:'JetBrains Mono',monospace;font-size:26px;font-weight:700;color:var(--tp)}
+.inv-foot{padding:10px 22px;border-top:1px solid var(--bd);display:flex;align-items:center;gap:7px;font-size:11.5px;color:var(--tt)}
+.inv-dot{width:6px;height:6px;border-radius:50%;background:var(--grn);flex-shrink:0}
+
+/* ═══════════════════════════════════
+   SECURITY
+═══════════════════════════════════ */
+.sec-inner{display:grid;grid-template-columns:1fr 1fr;gap:1px;background:rgba(255,255,255,.05);border:1px solid var(--bd);border-radius:var(--rL);overflow:hidden;margin-top:48px}
+.sec-block{background:var(--bg2);padding:36px 32px;transition:background .15s}
+.sec-block:hover{background:var(--bg3)}
+.sec-icon{width:36px;height:36px;border-radius:8px;border:1px solid var(--bd);background:rgba(255,255,255,.025);display:flex;align-items:center;justify-content:center;margin-bottom:18px}
+.sec-block h3{font-size:18px;letter-spacing:-.025em;margin-bottom:10px;line-height:1.25}
+.sec-block p{font-size:14px;color:var(--ts);line-height:1.72}
+.sec-block p+p{margin-top:8px}
+.sec-detail{margin-top:16px}
+.sec-detail summary{font-size:12.5px;font-weight:500;color:var(--tt);cursor:pointer;list-style:none;display:flex;align-items:center;gap:5px;user-select:none;transition:color .15s;padding:4px 0}
+.sec-detail summary::-webkit-details-marker,.sec-detail summary::marker{display:none}
+.sec-detail summary::after{content:'↓';font-size:10px;transition:transform .2s;display:inline-block}
+.sec-detail[open] summary::after{transform:rotate(180deg)}
+.sec-detail summary:hover{color:var(--ts)}
+.sec-detail-body{font-size:12.5px;color:var(--tt);line-height:1.75;margin-top:10px}
+.sec-tags{display:flex;flex-wrap:wrap;gap:5px;margin-top:14px}
+.sec-tag{font-size:10.5px;font-weight:500;padding:3px 9px;border-radius:20px;border:1px solid var(--bd);color:var(--tt);background:rgba(255,255,255,.02)}
+
+/* ═══════════════════════════════════
+   SHARING
+═══════════════════════════════════ */
+.sharing-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-top:48px}
+.sharing-card{background:var(--bg2);border:1px solid var(--bd);border-radius:var(--r);padding:24px 20px;transition:border-color .2s,background .2s;display:flex;flex-direction:column}
+.sharing-card:hover{border-color:rgba(255,255,255,.13);background:var(--bg3)}
+.sharing-icon{width:36px;height:36px;border-radius:8px;border:1px solid var(--bd);background:rgba(255,255,255,.025);display:flex;align-items:center;justify-content:center;margin-bottom:14px}
+.sharing-card h3{font-size:16px;letter-spacing:-.02em;margin-bottom:5px}
+.sharing-tagline{font-size:14px;font-weight:600;color:var(--ts);margin-bottom:10px}
+.sharing-desc{font-size:13px;color:var(--tt);line-height:1.65;flex:1}
+.sharing-badge{display:inline-block;margin-top:14px;font-size:10.5px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;padding:3px 10px;border-radius:20px;border:1px solid}
+
+/* ═══════════════════════════════════
+   FAQ
+═══════════════════════════════════ */
+.faq-list{max-width:720px;margin:44px auto 0;display:flex;flex-direction:column;gap:6px}
+details.faq{background:var(--bg2);border:1px solid var(--bd);border-radius:10px;overflow:hidden;transition:border-color .2s}
+details.faq:hover{border-color:rgba(255,255,255,.12)}
+details.faq[open]{border-color:rgba(255,255,255,.11)}
+summary.faq-q{padding:18px 22px;font-family:'Space Grotesk',sans-serif;font-size:14.5px;font-weight:700;letter-spacing:-.02em;color:var(--tp);cursor:pointer;list-style:none;display:flex;justify-content:space-between;align-items:center;gap:16px;user-select:none}
+summary.faq-q::-webkit-details-marker,summary.faq-q::marker{display:none}
+summary.faq-q::after{content:'';width:18px;height:18px;flex-shrink:0;background:rgba(255,255,255,.06);border-radius:50%;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none'%3E%3Cpath d='M4 6l4 4 4-4' stroke='%237A7AAA' stroke-width='1.5' stroke-linecap='round'/%3E%3C/svg%3E");background-size:14px;background-position:center;background-repeat:no-repeat;transition:transform .2s}
+details.faq[open] summary.faq-q::after{transform:rotate(180deg)}
+.faq-a{padding:0 22px 18px;font-size:13.5px;color:var(--ts);line-height:1.75}
+.faq-a p+p{margin-top:8px}
+.faq-a strong{color:var(--tp);font-weight:500}
+.faq-a a{color:var(--ind2);text-decoration:none;border-bottom:1px solid rgba(129,140,248,.3);transition:border-color .15s}
+.faq-a a:hover{border-color:var(--ind2)}
+
+/* ═══════════════════════════════════
+   CTA SECTION
+═══════════════════════════════════ */
+.cta-section{padding:112px var(--gap);text-align:center;position:relative;overflow:hidden}
+.cta-section::before{content:'';position:absolute;bottom:-10%;left:50%;transform:translateX(-50%);width:600px;height:400px;border-radius:50%;background:radial-gradient(circle,rgba(99,102,241,.09) 0%,transparent 65%);pointer-events:none}
+.cta-title{font-size:clamp(32px,4vw,52px);margin-bottom:14px}
+.cta-sub{font-size:16px;color:var(--ts);margin-bottom:36px}
+.cta-legal{margin-top:18px;font-size:12px;color:var(--tt)}
+.cta-legal a{color:var(--tt);text-decoration:underline;text-underline-offset:3px;transition:color .15s}
+.cta-legal a:hover{color:var(--ts)}
+
+/* ═══════════════════════════════════
+   FOOTER
+═══════════════════════════════════ */
+.footer{border-top:1px solid var(--bd);padding:52px var(--gap) 32px}
+.footer-inner{max-width:var(--max);margin:0 auto}
+.footer-top{display:grid;grid-template-columns:1fr auto;gap:48px;align-items:start;margin-bottom:44px}
+.footer-logo-row{display:flex;align-items:center;gap:7px;margin-bottom:8px}
+.footer-brand-name{font-family:'Space Grotesk',sans-serif;font-size:17px;font-weight:800;letter-spacing:-.04em;color:var(--tp)}
+.footer-brand-name span{color:var(--ind)}
+.footer-tagline{font-size:13px;color:var(--tt);line-height:1.65;max-width:210px;margin-top:2px}
+.footer-cols{display:flex;gap:56px}
+.footer-col h5{font-size:11px;font-weight:700;letter-spacing:.09em;text-transform:uppercase;color:var(--tt);margin-bottom:12px}
+.footer-col ul{list-style:none;display:flex;flex-direction:column;gap:8px}
+.footer-col a{font-size:13.5px;color:var(--ts);text-decoration:none;transition:color .15s}
+.footer-col a:hover{color:var(--tp)}
+.footer-bottom{border-top:1px solid var(--bd);padding-top:22px;display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap}
+.footer-copy{font-size:12.5px;color:var(--tt)}
+.footer-links{display:flex;gap:20px}
+.footer-links a{font-size:12.5px;color:var(--tt);text-decoration:none;transition:color .15s}
+.footer-links a:hover{color:var(--ts)}
+
+/* ═══════════════════════════════════
+   RESPONSIVE
+═══════════════════════════════════ */
+@media(max-width:920px){
+  .hero-inner{grid-template-columns:1fr;gap:44px}
+  .hero-visual{max-width:540px;margin:0 auto;width:100%}
+  .mockup{transform:none}.mockup:hover{transform:none}
+  .products-grid{grid-template-columns:1fr 1fr}
+  .billing-layout{grid-template-columns:1fr;gap:32px}
+  .footer-top{grid-template-columns:1fr;gap:28px}
+  .footer-cols{gap:32px}
+}
+@media(max-width:640px){
+  .section{padding:72px var(--gap)}
+  .hero{padding:72px var(--gap) 48px;min-height:auto}
+  .mapp{height:300px}.mfiles{grid-template-columns:repeat(3,1fr)}
+  .products-grid{grid-template-columns:1fr}
+  .nav-links{display:none}
+  .cta-section{padding:80px var(--gap)}
+  .footer-cols{flex-direction:column;gap:24px}
+  .pricing-intro{font-size:14px}
+}
+@media(max-width:420px){
+  .hero h1{font-size:36px;letter-spacing:-.04em}
+  .hero-sub{font-size:15px}
+  .btn-primary.lg{height:48px;font-size:15px}
+  .mapp{height:250px}.mfiles{grid-template-columns:repeat(2,1fr)}
+  .proof-dd{font-size:18px}
+}
+
+/* section scroll-margin for anchor nav */
+section[id]{scroll-margin-top:70px}
+</style>
+</head>
+
+<body>
+<a href="#main" class="sr-only" style="position:fixed;top:8px;left:8px;z-index:9999;background:var(--ind);color:#fff;padding:8px 14px;border-radius:7px;font-size:13px;font-weight:600;text-decoration:none">Skip to main content</a>
+
+<!-- ════════ NAV ════════ -->
+<header role="banner">
+<div class="nav-wrap" id="navWrap">
+  <div class="nav">
+    <a href="/" class="nav-brand" aria-label="DataDrop — go to homepage">
+      <svg width="22" height="22" viewBox="0 0 28 28" fill="none" aria-hidden="true" focusable="false"><rect width="28" height="28" rx="7" fill="#6366F1"/><path d="M11 4h6v10h4l-7 8-7-8h4z" fill="white"/></svg>
+      <span class="nav-brand-name">Data<span>Drop</span></span>
+    </a>
+    <nav class="nav-links" aria-label="Site sections">
+      <a href="#products" class="nav-link">Product</a>
+      <a href="#pricing" class="nav-link">Pricing</a>
+      <a href="#billing" class="nav-link">Billing</a>
+      <a href="#faq" class="nav-link">FAQ</a>
+    </nav>
+    <div class="nav-end">
+      <a href="https://app.datadrop.co.in/sign-in" class="nav-sign">Sign in</a>
+      <a href="https://app.datadrop.co.in/sign-up" class="btn btn-primary" style="height:36px;font-size:13.5px;padding:0 18px;border-radius:7px">Start free →</a>
+    </div>
+  </div>
+</div>
+</header>
+
+<main id="main">
+
+<!-- ════════ HERO ════════ -->
+<section class="hero" aria-labelledby="hero-heading">
+<div class="hero-inner inner" style="padding:0">
+
+  <div class="hero-text">
+    <div class="hero-badge" role="note">
+      <span class="hero-badge-dot" aria-hidden="true"></span>
+      <span>15-day free trial · No credit card</span>
+    </div>
+    <h1 id="hero-heading">Cloud storage<br><em>that charges you fai<span style="font-size:.7em;vertical-align:middle">₹</span>ly.</em></h1>
+    <p class="hero-sub">Store files, protect private documents, collaborate securely — billed only for the storage you actually keep. No plans. No wasted spend.</p>
+    <div class="hero-cta cta-pair">
+      <a href="https://app.datadrop.co.in/sign-up" class="btn btn-primary lg">Start free</a>
+      <a href="#pricing" class="btn btn-secondary">See pricing</a>
+    </div>
+    <div class="hero-trust" role="note" aria-label="Key features">
+      <div class="hero-chip"><svg width="13" height="13" viewBox="0 0 13 13" fill="none" aria-hidden="true"><rect x="2.5" y="5.5" width="8" height="6" rx="1.5" stroke="#A5B4FC" stroke-width="1.2"/><path d="M4.5 5.5V4a2 2 0 0 1 4 0v1.5" stroke="#A5B4FC" stroke-width="1.2" stroke-linecap="round"/><circle cx="6.5" cy="8.5" r=".8" fill="#A5B4FC"/></svg>Zero-knowledge Vault</div>
+      <div class="hero-chip"><svg width="13" height="13" viewBox="0 0 13 13" fill="none" aria-hidden="true"><circle cx="4.5" cy="4" r="1.8" stroke="#A5B4FC" stroke-width="1.2"/><path d="M1.5 10.5c0-1.7 1.3-3 3-3" stroke="#A5B4FC" stroke-width="1.2" stroke-linecap="round"/><circle cx="8.5" cy="4" r="1.8" stroke="#A5B4FC" stroke-width="1.2"/><path d="M11.5 10.5c0-1.7-1.3-3-3-3" stroke="#A5B4FC" stroke-width="1.2" stroke-linecap="round"/><path d="M5 10.5h3" stroke="#A5B4FC" stroke-width="1.2" stroke-linecap="round"/></svg>Encrypted Workspaces</div>
+      <div class="hero-chip"><svg width="13" height="13" viewBox="0 0 13 13" fill="none" aria-hidden="true"><path d="M6.8 2H3.5a1 1 0 0 0-1 1v3.3l5 5a1 1 0 0 0 1.4 0l3-3a1 1 0 0 0 0-1.4L6.8 2z" stroke="#A5B4FC" stroke-width="1.2" stroke-linejoin="round"/><circle cx="5.2" cy="5.2" r=".9" fill="#A5B4FC"/></svg>Pay-as-you-go billing</div>
+      <div class="hero-chip"><svg width="13" height="13" viewBox="0 0 13 13" fill="none" aria-hidden="true"><path d="M10.5 6.5a4 4 0 0 1-6.9 2.7" stroke="#A5B4FC" stroke-width="1.2" stroke-linecap="round"/><path d="M2.5 6.5a4 4 0 0 1 6.9-2.7" stroke="#A5B4FC" stroke-width="1.2" stroke-linecap="round"/><path d="M8.8 3.5l1.2.3-.3 1.2" stroke="#A5B4FC" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/><path d="M4.2 9.5l-1.2-.3.3-1.2" stroke="#A5B4FC" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/></svg>UPI AutoPay</div>
+    </div>
+  </div>
+
+  <div class="hero-visual" role="img" aria-label="DataDrop app showing file manager with sidebar navigation and file grid">
+    <div class="mockup-glow" aria-hidden="true"></div>
+    <div class="mockup" aria-hidden="true">
+      <div class="mc">
+        <div class="mc-dots" role="presentation">
+          <span class="d-r"></span><span class="d-y"></span><span class="d-g"></span>
+        </div>
+        <div class="mc-url">
+          <svg width="8" height="9" viewBox="0 0 8 9" fill="none"><rect x="1" y="4" width="6" height="4.5" rx="1" stroke="currentColor" stroke-width=".8"/><path d="M2.5 4V2.8a1.5 1.5 0 0 1 3 0V4" stroke="currentColor" stroke-width=".8"/></svg>
+          app.datadrop.co.in
+        </div>
+        <div style="width:40px"></div>
+      </div>
+      <div class="mapp">
+        <div class="msb" role="presentation">
+          <div class="msb-logo">
+            <div class="msb-logo-mark">
+              <svg width="10" height="10" viewBox="0 0 10 10" fill="none"><path d="M4 1h2v3.5h1.5L5 8 2.5 4.5H4z" fill="white"/></svg>
+            </div>
+            <span class="msb-logo-name">DataDrop</span>
+          </div>
+          <div class="msb-item active">
+            <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M1 2.5h4l1 1.5h5v6H1z" stroke="currentColor" stroke-width="1.1" stroke-linejoin="round"/></svg>
+            Files
+          </div>
+          <div class="msb-item">
+            <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><rect x="2" y="5.5" width="8" height="5.5" rx="1.2" stroke="currentColor" stroke-width="1.1"/><path d="M4 5.5V3.8a2 2 0 0 1 4 0v1.7" stroke="currentColor" stroke-width="1.1" stroke-linecap="round"/></svg>
+            Vault
+          </div>
+          <div class="msb-item">
+            <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><circle cx="4" cy="4" r="2" stroke="currentColor" stroke-width="1.1"/><circle cx="8.5" cy="4" r="2" stroke="currentColor" stroke-width="1.1"/><path d="M1 11c0-1.7 1.3-3 3-3h4c1.7 0 3 1.3 3 3" stroke="currentColor" stroke-width="1.1" stroke-linecap="round"/></svg>
+            Workspace
+          </div>
+          <div class="msb-space"></div>
+          <div class="msb-storage">
+            <div class="msb-storage-label">STORAGE</div>
+            <div class="msb-bar"><div class="msb-bar-fill"></div></div>
+            <div class="msb-storage-val">18.4 / 54 GB</div>
+          </div>
+        </div>
+        <div class="mmain" role="presentation">
+          <div class="mmain-head">
+            <span class="mmain-title">My Files</span>
+            <div class="mmain-search">
+              <svg width="8" height="8" viewBox="0 0 8 8" fill="none"><circle cx="3.5" cy="3.5" r="2.5" stroke="currentColor" stroke-width=".9"/><path d="M5.5 5.5L7 7" stroke="currentColor" stroke-width=".9" stroke-linecap="round"/></svg>
+              Search…
+            </div>
+            <button class="mmain-upload" tabindex="-1" aria-hidden="true">↑ Upload</button>
+          </div>
+          <div class="mfiles">
+            <div class="mfile"><div class="mfile-icon folder"><svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M1 3h5l1 1.5h6v7H1z" fill="rgba(255,255,255,.25)"/></svg></div><div class="mfile-name">Documents</div><div class="mfile-size">24 files</div></div>
+            <div class="mfile"><div class="mfile-icon folder" style="background:linear-gradient(135deg,#0D9488,#14B8A6)"><svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M1 3h5l1 1.5h6v7H1z" fill="rgba(255,255,255,.25)"/></svg></div><div class="mfile-name">Photos</div><div class="mfile-size">312 files</div></div>
+            <div class="mfile"><div class="mfile-icon fig">FIG</div><div class="mfile-name">design-v3.fig</div><div class="mfile-size">14.2 MB</div></div>
+            <div class="mfile"><div class="mfile-icon pdf">PDF</div><div class="mfile-name">pitch-deck.pdf</div><div class="mfile-size">3.8 MB</div></div>
+            <div class="mfile"><div class="mfile-icon pdf">PDF</div><div class="mfile-name">invoice-jul.pdf</div><div class="mfile-size">98 KB</div></div>
+            <div class="mfile"><div class="mfile-icon img">IMG</div><div class="mfile-name">banner.png</div><div class="mfile-size">2.1 MB</div></div>
+            <div class="mfile"><div class="mfile-icon txt">TXT</div><div class="mfile-name">notes.md</div><div class="mfile-size">12 KB</div></div>
+            <div class="mfile"><div class="mfile-icon fig" style="background:linear-gradient(135deg,#7C3AED,#8B5CF6)">ZIP</div><div class="mfile-name">archive.zip</div><div class="mfile-size">88.4 MB</div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>
+</section>
+
+<!-- ════════ PRODUCTS ════════ -->
+<section class="section" id="products" aria-labelledby="products-heading" style="background:var(--bg2);border-top:1px solid var(--bd);border-bottom:1px solid var(--bd)">
+<div class="section-inner">
+  <div class="eyebrow fade-up">What's included</div>
+  <h2 class="h2 fade-up d1" id="products-heading">Store. Protect. Collaborate.</h2>
+  <p class="lead fade-up d2">Files, Zero Knowledge Vault, and End-to-End Encrypted Workspace — each built for a different purpose, all in one account.</p>
+  <div class="products-grid">
+
+    <article class="pcard fade-up d1" aria-label="Files — everyday cloud storage with sharing">
+      <div class="pcard-icon" aria-hidden="true">
+        <svg width="18" height="18" viewBox="0 0 18 18" fill="none"><path d="M2 3h6l2 2.5h6v10H2z" stroke="#818CF8" stroke-width="1.3" stroke-linejoin="round"/><path d="M5 10h8M5 12.5h5" stroke="#818CF8" stroke-width="1.1" stroke-linecap="round"/></svg>
+      </div>
+      <div class="pcard-thumb" aria-hidden="true">
+        <div class="thumb-files">
+          <div class="thumb-file"><div class="thumb-dot" style="background:linear-gradient(135deg,#4338CA,#6366F1)"></div>Documents</div>
+          <div class="thumb-file"><div class="thumb-dot" style="background:#DC2626"></div>pitch.pdf</div>
+          <div class="thumb-file"><div class="thumb-dot" style="background:#0D9488"></div>design.fig</div>
+          <div class="thumb-file"><div class="thumb-dot" style="background:#D97706"></div>photo.jpg</div>
+        </div>
+      </div>
+      <div>
+        <h3>Files</h3>
+        <p class="pcard-desc">Everyday cloud storage with controlled sharing — only verified accounts can receive your files.</p>
+        <div class="pcard-section-label">Use cases</div>
+        <ul class="pcard-list">
+          <li>Freelancers sending deliverables to clients</li>
+          <li>Students sharing assignments without public links</li>
+          <li>Teams distributing internal documents</li>
+        </ul>
+        <div class="pcard-section-label">Features</div>
+        <ul class="pcard-feat-pills">
+          <li class="pcard-feat-pill">Version history</li>
+          <li class="pcard-feat-pill">Folder structure</li>
+          <li class="pcard-feat-pill">Expiring shares</li>
+          <li class="pcard-feat-pill">One-time invite link</li>
+          <li class="pcard-feat-pill">E2E encrypted</li>
+        </ul>
+      </div>
+      <div style="margin-top:auto;padding-top:14px;border-top:1px solid var(--bd);display:flex;align-items:center;justify-content:space-between">
+        <span style="font-size:11px;font-weight:600;color:#818CF8;letter-spacing:.04em">● Shareable</span>
+        <a href="https://app.datadrop.co.in/sign-up" class="pcard-link" aria-label="Store files — create a free account">
+          Store files
+          <svg width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden="true" focusable="false"><path d="M2 6h8M6 2.5l4 3.5-4 3.5" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </a>
+      </div>
+    </article>
+
+    <article class="pcard fade-up d2" aria-label="Vault — zero-knowledge encrypted private storage">
+      <div class="pcard-icon" aria-hidden="true">
+        <svg width="18" height="18" viewBox="0 0 18 18" fill="none"><rect x="2" y="8" width="14" height="9" rx="2" stroke="#06B6D4" stroke-width="1.3"/><path d="M5.5 8V6a3.5 3.5 0 0 1 7 0v2" stroke="#06B6D4" stroke-width="1.3" stroke-linecap="round"/><circle cx="9" cy="12" r="1.5" fill="#06B6D4" opacity=".5"/><path d="M9 12v2" stroke="#06B6D4" stroke-width="1.2" stroke-linecap="round"/></svg>
+      </div>
+      <div class="pcard-thumb" aria-hidden="true">
+        <div class="thumb-vault">
+          <div class="thumb-vault-icon">
+            <svg width="20" height="20" viewBox="0 0 14 14" fill="none"><rect x="2" y="6" width="10" height="7" rx="1.5" stroke="#06B6D4" stroke-width="1.1"/><path d="M4 6V4.5a3 3 0 0 1 6 0V6" stroke="#06B6D4" stroke-width="1.1" stroke-linecap="round"/></svg>
+          </div>
+          <div class="thumb-vault-label">Locked · Enter PIN to access</div>
+        </div>
+      </div>
+      <div>
+        <h3>Zero Knowledge Vault</h3>
+        <p class="pcard-desc">Encrypted on your device before upload. Only your PIN unlocks it — we store only ciphertext, no backdoor, no master key.</p>
+        <div class="pcard-section-label">Use cases</div>
+        <ul class="pcard-list">
+          <li>Storing passports, contracts & sensitive documents</li>
+          <li>Personal medical records and private photos</li>
+          <li>Lawyers and professionals with confidential files</li>
+        </ul>
+        <div class="pcard-section-label">Features</div>
+        <ul class="pcard-feat-pills">
+          <li class="pcard-feat-pill">AES-256-GCM encryption</li>
+          <li class="pcard-feat-pill">PIN protected</li>
+          <li class="pcard-feat-pill">Recovery phrase</li>
+          <li class="pcard-feat-pill">Zero-knowledge</li>
+        </ul>
+      </div>
+      <div style="margin-top:auto;padding-top:14px;border-top:1px solid var(--bd);display:flex;align-items:center;justify-content:space-between">
+        <span style="font-size:11px;font-weight:600;color:var(--ts);letter-spacing:.04em">⊘ Not shareable</span>
+        <a href="https://app.datadrop.co.in/sign-up" class="pcard-link" aria-label="Protect documents with Vault — create a free account">
+          Protect documents
+          <svg width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden="true" focusable="false"><path d="M2 6h8M6 2.5l4 3.5-4 3.5" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </a>
+      </div>
+    </article>
+
+    <article class="pcard fade-up d3" aria-label="Workspace — end-to-end encrypted team collaboration">
+      <div class="pcard-icon" aria-hidden="true">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><circle cx="9" cy="7" r="4" stroke="#22C55E" stroke-width="1.6"/><path d="M3 21v-2a4 4 0 0 1 4-4h4a4 4 0 0 1 4 4v2" stroke="#22C55E" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/><path d="M16 3.13a4 4 0 0 1 0 7.75" stroke="#22C55E" stroke-width="1.6" stroke-linecap="round"/><path d="M21 21v-2a4 4 0 0 0-3-3.87" stroke="#22C55E" stroke-width="1.6" stroke-linecap="round"/></svg>
+      </div>
+      <div class="pcard-thumb" aria-hidden="true">
+        <div class="thumb-ws">
+          <div class="thumb-ws-member"><div class="thumb-ws-avatar" style="background:linear-gradient(135deg,#6366F1,#818CF8)"></div><span>Alex — Admin</span></div>
+          <div class="thumb-ws-member"><div class="thumb-ws-avatar" style="background:linear-gradient(135deg,#0D9488,#14B8A6)"></div><span>Sophie — Upload</span></div>
+          <div class="thumb-ws-member"><div class="thumb-ws-avatar" style="background:linear-gradient(135deg,#D97706,#F59E0B)"></div><span>Marcus — Read</span></div>
+          <div class="thumb-ws-member" style="opacity:.4"><div class="thumb-ws-avatar" style="background:rgba(255,255,255,.08);border:1px dashed rgba(255,255,255,.15)"></div><span>Invite member…</span></div>
+        </div>
+      </div>
+      <div>
+        <h3>End-to-End Encrypted Workspace</h3>
+        <p class="pcard-desc">Shared encrypted storage where each member holds their own key — we cannot read workspace contents.</p>
+        <div class="pcard-section-label">Use cases</div>
+        <ul class="pcard-list">
+          <li>Families storing shared photos and memories</li>
+          <li>Photography studios sharing media with clients</li>
+          <li>Office teams collaborating on sensitive projects</li>
+        </ul>
+        <div class="pcard-section-label">Features</div>
+        <ul class="pcard-feat-pills">
+          <li class="pcard-feat-pill">Per-member keys</li>
+          <li class="pcard-feat-pill">Role-based access</li>
+          <li class="pcard-feat-pill">Invite by email</li>
+          <li class="pcard-feat-pill">Revoke anytime</li>
+        </ul>
+      </div>
+      <div style="margin-top:auto;padding-top:14px;border-top:1px solid var(--bd);display:flex;align-items:center;justify-content:space-between">
+        <span style="font-size:11px;font-weight:600;color:var(--ind2);letter-spacing:.04em">● Members only</span>
+        <a href="https://app.datadrop.co.in/sign-up" class="pcard-link" aria-label="Collaborate securely with Workspace — create a free account">
+          Collaborate securely
+          <svg width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden="true" focusable="false"><path d="M2 6h8M6 2.5l4 3.5-4 3.5" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </a>
+      </div>
+    </article>
+
+  </div>
+</div>
+</section>
+
+<!-- ════════ PRICING ════════ -->
+<section class="section" id="pricing" aria-labelledby="pricing-heading">
+<div class="section-inner">
+  <div class="phc fade-up">
+
+    <!-- Left: heading + price -->
+    <div class="phc-left">
+      <div class="eyebrow">Pricing</div>
+      <h2 class="h2" id="pricing-heading">Simple pricing.</h2>
+      <div class="phc-price-row" aria-label="₹1.49 per GB per month">
+        <span class="phc-currency" aria-hidden="true">₹</span>
+        <span class="phc-number" aria-hidden="true">1.49</span>
+      </div>
+      <div class="phc-unit"><strong>per GB</strong> &nbsp;·&nbsp; per month</div>
+    </div>
+
+    <!-- Right: bullet points as chips -->
+    <div class="phc-right">
+      <div class="phc-chips">
+        <div class="hero-chip"><svg width="13" height="13" viewBox="0 0 13 13" fill="none" aria-hidden="true"><circle cx="6.5" cy="6.5" r="5" stroke="#A5B4FC" stroke-width="1.2"/><polyline points="4,6.5 6,8.5 9.5,4.5" stroke="#A5B4FC" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg>No storage plans. No paying for unused storage.</div>
+        <div class="hero-chip"><svg width="13" height="13" viewBox="0 0 13 13" fill="none" aria-hidden="true"><circle cx="6.5" cy="6.5" r="5" stroke="#A5B4FC" stroke-width="1.2"/><polyline points="4,6.5 6,8.5 9.5,4.5" stroke="#A5B4FC" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg>Delete a file — billing stops that instant.</div>
+        <div class="hero-chip"><svg width="13" height="13" viewBox="0 0 13 13" fill="none" aria-hidden="true"><circle cx="6.5" cy="6.5" r="5" stroke="#A5B4FC" stroke-width="1.2"/><polyline points="4,6.5 6,8.5 9.5,4.5" stroke="#A5B4FC" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg>₹149/mo = 100 GB capacity.</div>
+        <div class="hero-chip"><svg width="13" height="13" viewBox="0 0 13 13" fill="none" aria-hidden="true"><circle cx="6.5" cy="6.5" r="5" stroke="#A5B4FC" stroke-width="1.2"/><polyline points="4,6.5 6,8.5 9.5,4.5" stroke="#A5B4FC" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg>Downloads and sharing are always free.</div>
+      </div>
+    </div>
+
+  </div>
+</div>
+</section>
+
+<!-- ════════ BILLING ════════ -->
+<section class="section" id="billing" aria-labelledby="billing-heading" style="background:var(--bg2);border-top:1px solid var(--bd);border-bottom:1px solid var(--bd)">
+<div class="section-inner">
+  <div class="eyebrow fade-up">Billing</div>
+  <h2 class="h2 fade-up d1" id="billing-heading">No surprise bills. Ever.</h2>
+  <p class="lead fade-up d2">Set a monthly limit to unlock your storage capacity. Pay only for the time your files are stored.</p>
+  <div class="billing-layout">
+    <div class="billing-steps fade-up">
+      <div class="bs">
+        <div class="bs-num" aria-hidden="true">01</div>
+        <div>
+          <p class="bs-title">Choose your storage capacity</p>
+          <p class="bs-desc">Your monthly limit determines how much you can keep. ₹149/mo = 100 GB. ₹298/mo = 200 GB. Storage capacity stays constant — it does not change based on the date.</p>
+        </div>
+      </div>
+      <div class="bs">
+        <div class="bs-num" aria-hidden="true">02</div>
+        <div>
+          <p class="bs-title">Store files, pay by the second</p>
+          <p class="bs-desc">Every byte is tracked continuously. Upload near the end of the month and pay only for the time the file was stored. Delete a file and billing stops that instant.</p>
+        </div>
+      </div>
+      <div class="bs">
+        <div class="bs-num" aria-hidden="true">03</div>
+        <div>
+          <p class="bs-title">Collected via UPI at month end</p>
+          <p class="bs-desc">Your actual usage is collected via UPI AutoPay — always proportional to storage time, never more than your approved limit.</p>
+        </div>
+      </div>
+    </div>
+    <div class="invoice fade-up d1" aria-label="Sample monthly invoice">
+      <div class="inv-top">
+        <div class="inv-label">Current period</div>
+        <div class="inv-period">July 2026 · Real-time</div>
+      </div>
+      <div class="inv-rows">
+        <div class="inv-row">
+          <span class="inv-row-label">Standard storage<small>58.4 GB</small></span>
+          <span class="inv-row-val">₹87.02</span>
+        </div>
+        <div class="inv-row">
+          <span class="inv-row-label">Vault storage<small>1.6 GB</small></span>
+          <span class="inv-row-val">₹2.38</span>
+        </div>
+        <div class="inv-row">
+          <span class="inv-row-label">Downloads</span>
+          <span class="inv-row-val free">Free</span>
+        </div>
+        <div class="inv-row">
+          <span class="inv-row-label">Sharing</span>
+          <span class="inv-row-val free">Free</span>
+        </div>
+      </div>
+      <div class="inv-total">
+        <span class="inv-total-label">Month-to-date</span>
+        <span class="inv-total-val">₹89.40</span>
+      </div>
+      <div class="inv-foot">
+        <div class="inv-dot" aria-hidden="true"></div>
+        UPI AutoPay active
+        <span style="flex:1;text-align:right;font-family:'JetBrains Mono',monospace;font-size:10.5px">Limit ₹149/mo</span>
+      </div>
+    </div>
+  </div>
+</div>
+</section>
+
+<!-- ════════ FAQ ════════ -->
+<section class="section" id="faq" aria-labelledby="faq-heading">
+<div class="section-inner">
+  <div style="text-align:center;margin-bottom:0">
+    <div class="eyebrow fade-up" style="display:inline-block">FAQ</div>
+    <h2 class="h2 fade-up d1" id="faq-heading">Common questions.</h2>
+  </div>
+  <div class="faq-list">
+
+    <details class="faq fade-up d1">
+      <summary class="faq-q" aria-expanded="false">Why DataDrop instead of Google Drive or Dropbox?</summary>
+      <div class="faq-a">
+        <p>They sell fixed storage plans — 100 GB, 2 TB — whether you use the space or not. If you store 22 GB, you still pay for the full plan tier.</p>
+        <p>DataDrop charges only for what you keep, measured by the second. It also includes a zero-knowledge Vault and encrypted team Workspaces that competitors don't offer.</p>
+      </div>
+    </details>
+
+    <details class="faq fade-up d2">
+      <summary class="faq-q" aria-expanded="false">How does the monthly limit work?</summary>
+      <div class="faq-a">
+        <p>Your monthly limit determines the maximum storage capacity available to your account. A ₹149/mo limit = 100 GB max storage. A ₹298/mo limit = 200 GB. This capacity stays the same throughout the billing cycle — it does not shrink based on the date.</p>
+        <p>Your actual bill is calculated continuously based on how long your files remain stored, so uploading near the end of the month costs less than storing the same files for a full month. At month end, your exact usage is collected via UPI AutoPay.</p>
+      </div>
+    </details>
+
+    <details class="faq fade-up d3">
+      <summary class="faq-q" aria-expanded="false">How does billing work?</summary>
+      <div class="faq-a">
+        <p>DataDrop tracks every byte stored, measured by the second, at <strong>₹1.49 per GB per month</strong>. Store 100 GB for a full month = ₹149. Store the same 100 GB for only half the month = ₹74.50.</p>
+        <p>At the end of each billing cycle, only your actual usage is charged via UPI AutoPay — never more than your approved limit. Uploads are blocked if your total stored files would exceed your capacity limit.</p>
+      </div>
+    </details>
+
+    <details class="faq fade-up d3">
+      <summary class="faq-q" aria-expanded="false">What happens when the free trial ends?</summary>
+      <div class="faq-a">
+        <p>Your account becomes read-only. You can still view and download all your files — nothing is deleted immediately. Your files are kept for 30 days from your account creation date (15 days after the trial ends) before any removal.</p>
+        <p>To resume uploads, set up UPI AutoPay and configure a monthly spending limit. See our <a href="/terms">Terms of Service</a> for the full lifecycle policy.</p>
+      </div>
+    </details>
+
+    <details class="faq fade-up">
+      <summary class="faq-q" aria-expanded="false">Can DataDrop read my Vault files?</summary>
+      <div class="faq-a">
+        <p><strong>No.</strong> Vault files are encrypted on your device before upload using keys only you hold. Our servers receive and store only ciphertext. We have no mechanism to decrypt your Vault — including our own engineering team.</p>
+        <p>If you forget your PIN, only the recovery phrase you created at Vault setup can restore access.</p>
+      </div>
+    </details>
+
+    <details class="faq fade-up d1">
+      <summary class="faq-q" aria-expanded="false">Can I cancel anytime?</summary>
+      <div class="faq-a">
+        <p>Yes. No contracts, no annual commitments, no cancellation fees. During the trial, no payment is required. After the trial, billing is month-to-month based on usage. See our <a href="/refund">Refund Policy</a> for full details.</p>
+      </div>
+    </details>
+
+    <details class="faq fade-up d2">
+      <summary class="faq-q" aria-expanded="false">What happens if a payment fails?</summary>
+      <div class="faq-a">
+        <p>If UPI AutoPay fails, your account moves to read-only status. Your files remain safe and accessible to download. You receive email reminders at 7, 21, and 30 days. Files are permanently deleted only after 35 days of non-payment, with advance warning. See the <a href="/refund">Refund Policy</a> for the full timeline.</p>
+      </div>
+    </details>
+
+    <details class="faq fade-up d3">
+      <summary class="faq-q" aria-expanded="false">Why are there three separate storage types?</summary>
+      <div class="faq-a">
+        <p><strong>Files</strong> — everyday storage with flexible sharing, like Google Drive but pay-per-use.</p>
+        <p><strong>Vault</strong> — personal encrypted space only you can open. Use it for sensitive documents, private records, anything you don't want anyone else to access.</p>
+        <p><strong>Workspace</strong> — encrypted team collaboration. Only invited members can access files; each member holds their own key.</p>
+      </div>
+    </details>
+
+    <details class="faq fade-up">
+      <summary class="faq-q" aria-expanded="false">Is DataDrop available on mobile?</summary>
+      <div class="faq-a">
+        <p>DataDrop is a progressive web app that works on all modern browsers — mobile and desktop — with no installation required. All features including the Vault and Workspace are accessible from any device.</p>
+      </div>
+    </details>
+
+  </div>
+  <div class="fade-up" style="margin-top:32px;text-align:center">
+    <p style="font-size:13.5px;color:var(--tt)">Still have questions? Write to us at <a id="faq-contact" href="#" style="color:var(--ind2);text-decoration:none;border-bottom:1px solid rgba(129,140,248,.3)"></a></p>
+  </div>
+</div>
+</section>
+
+<!-- ════════ CTA ════════ -->
+<section class="cta-section" aria-labelledby="cta-heading" style="background:var(--bg2);border-top:1px solid var(--bd);border-bottom:1px solid var(--bd)">
+  <div class="inner" style="padding:0">
+    <h2 class="cta-title" id="cta-heading">Ready to stop paying<br>for space you don't use?</h2>
+    <p class="cta-sub">15 days free · 5 GB included · No credit card · Cancel anytime</p>
+    <div class="cta-pair" style="justify-content:center">
+      <a href="https://app.datadrop.co.in/sign-up" class="btn btn-primary lg">Start free</a>
+    </div>
+    <p class="cta-legal">By signing up you agree to our <a href="/terms">Terms of Service</a> and <a href="/privacy">Privacy Policy</a>.</p>
+  </div>
+</section>
+
+</main>
+
+<!-- ════════ FOOTER ════════ -->
+<footer class="footer" role="contentinfo">
+  <div class="footer-inner">
+    <div class="footer-top">
+      <div>
+        <div class="footer-logo-row">
+          <svg width="20" height="20" viewBox="0 0 28 28" fill="none" aria-hidden="true" focusable="false"><rect width="28" height="28" rx="7" fill="#6366F1"/><path d="M11 4h6v10h4l-7 8-7-8h4z" fill="white"/></svg>
+          <span class="footer-brand-name">Data<span>Drop</span></span>
+        </div>
+        <p class="footer-tagline">Pay-as-you-go cloud storage. Billed by the second. Built in India.</p>
+      </div>
+      <nav class="footer-cols" aria-label="Footer navigation">
+        <div class="footer-col">
+          <h5>Product</h5>
+          <ul>
+            <li><a href="#products">What's included</a></li>
+            <li><a href="#pricing">Pricing</a></li>
+            <li><a href="#billing">Billing</a></li>
+            <li><a href="#faq">FAQ</a></li>
+            <li><a href="https://app.datadrop.co.in/sign-up">Get started</a></li>
+            <li><a href="https://app.datadrop.co.in/sign-in">Sign in</a></li>
+          </ul>
+        </div>
+        <div class="footer-col">
+          <h5>Legal</h5>
+          <ul>
+            <li><a href="/terms">Terms of Service</a></li>
+            <li><a href="/privacy">Privacy Policy</a></li>
+            <li><a href="/refund">Refund Policy</a></li>
+            <li><a id="footer-contact" href="#">Contact</a></li>
+          </ul>
+        </div>
+      </nav>
+    </div>
+    <div class="footer-bottom">
+      <span class="footer-copy">© 2026 DataDrop. All rights reserved.</span>
+    </div>
+  </div>
+</footer>
+
+<script>
+(function(){
+  'use strict';
+  // Sticky nav
+  var nav=document.getElementById('navWrap');
+  window.addEventListener('scroll',function(){nav.classList.toggle('stuck',window.scrollY>16)},{passive:true});
+
+  // Scroll-reveal with IntersectionObserver
+  if('IntersectionObserver' in window){
+    var io=new IntersectionObserver(function(entries){
+      entries.forEach(function(e){if(e.isIntersecting){e.target.classList.add('in');io.unobserve(e.target);}});
+    },{threshold:.1,rootMargin:'0px 0px -32px 0px'});
+    document.querySelectorAll('.fade-up').forEach(function(el){io.observe(el);});
+  } else {
+    document.querySelectorAll('.fade-up').forEach(function(el){el.classList.add('in');});
+  }
+
+  // FAQ aria-expanded
+  document.querySelectorAll('details.faq').forEach(function(d){
+    var s=d.querySelector('summary');
+    d.addEventListener('toggle',function(){s.setAttribute('aria-expanded',String(d.open));});
+  });
+
+  // Security details aria-expanded
+  document.querySelectorAll('details.sec-detail').forEach(function(d){
+    var s=d.querySelector('summary');
+    d.addEventListener('toggle',function(){s.setAttribute('aria-expanded',String(d.open));});
+  });
+}());
+</script>
+
+<script>(function(){var u='datadrop.contact',d='gmail.com',e=u+'@'+d,m='mailto:'+e;var f=document.getElementById('faq-contact');if(f){f.href=m;f.textContent=e;}var g=document.getElementById('footer-contact');if(g){g.href=m;}})();</script>
+
+<!-- Cloudflare Web Analytics -->
+<script defer src="https://static.cloudflareinsights.com/beacon.min.js/v4513226cdae34746b4dedf0b4dfa099e1781791509496" integrity="sha512-ZE9pZaUXND66v380QUtch/5sE9tPFh2zg45pR2PB0CVkCtOREv2AJKkSidISWkysEuQ0EH8faUU5du78bx87UQ==" data-cf-beacon='{"version":"2024.11.0","token":"f52c741d6bf64f96bb474ced2fb1dd90","r":1}' crossorigin="anonymous"></script>
+
+</body>
+</html>

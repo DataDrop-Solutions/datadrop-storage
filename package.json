@@ -7,9 +7,12 @@
     "deploy": "bash scripts/deploy.sh",
     "dev": "wrangler dev workers/api-router/index.js",
     "schema": "wrangler d1 execute datadrop-db --file=schema/schema.sql --remote",
-    "tail": "wrangler tail datadrop-api"
+    "tail": "wrangler tail datadrop-api",
+    "test": "vitest run",
+    "test:watch": "vitest"
   },
   "devDependencies": {
+    "vitest": "^2.0.0",
     "wrangler": "^4.0.0"
   }
 }

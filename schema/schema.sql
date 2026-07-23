@@ -491,6 +491,8 @@ CREATE INDEX IF NOT EXISTS idx_users_status            ON users(status);
 -- CONFIG SEED DATA
 -- ============================================================
 INSERT OR REPLACE INTO config (key, value) VALUES
+  ('storage_price_per_gb_month',    '1.49'),
+  ('mandate_supersede_grace_hours', '48'),
   ('price_tier_0_30',         '1.89'),
   ('price_tier_31_100',       '1.49'),
   ('price_tier_101_200',      '1.29'),
@@ -503,7 +505,7 @@ INSERT OR REPLACE INTO config (key, value) VALUES
   ('trial_days',              '7'),
   ('trial_gb_limit',          '5'),
   ('wallet_min_refund',       '50'),
-  ('retention_days_unpaid',   '90'),
+  ('retention_days_unpaid',   '35'),
   ('trash_retention_days',    '30'),
   ('founding_members_max',    '500'),
   ('r2_promotion_threshold',  '2'),

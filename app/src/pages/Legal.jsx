@@ -2,15 +2,15 @@ import React from 'react'
 import { useNavigate } from 'react-router-dom'
 
 const S = {
-  bg:      '#07070D',
-  bg2:     '#0F0F1A',
-  bg3:     '#11111E',
-  border:  '#1E1E32',
-  indigo:  '#5B5EF4',
+  bg:      '#08081A',
+  bg2:     '#0D0D22',
+  bg3:     '#111130',
+  border:  'rgba(255,255,255,.07)',
+  indigo:  '#6366F1',
   cyan:    '#00D4FF',
-  textP:   '#EEEEF8',
+  textP:   '#EDEDFF',
   textS:   '#8888AA',
-  textT:   '#55556A',
+  textT:   '#7A7AAA',
 }
 
 function Logo() {
@@ -18,7 +18,7 @@ function Logo() {
   return (
     <div onClick={() => nav('/')} style={{ display:'flex', alignItems:'center', gap:10, cursor:'pointer', userSelect:'none' }}>
       <svg width={22} height={22} viewBox="0 0 28 28" fill="none">
-        <rect width="28" height="28" rx="7" fill="#5B5EF4"/>
+        <rect width="28" height="28" rx="7" fill="#6366F1"/>
         <path d="M11 4h6v10h4l-7 8-7-8h4z" fill="white"/>
       </svg>
       <span style={{ fontFamily:"'Space Grotesk',sans-serif", fontSize:22, fontWeight:800, letterSpacing:'-0.04em' }}>
@@ -102,8 +102,8 @@ export function Terms() {
         <P>We reserve the right to suspend or terminate accounts that violate these rules, without prior notice.</P>
       </Section>
       <Section title="Storage and Billing">
-        <P>DataDrop uses a pre-paid wallet model. You top up your wallet and are billed daily for active storage. Charges are calculated at the rates shown on the pricing page and deducted from your wallet balance each day. If your wallet reaches zero your account enters read-only mode — you can download but not upload until you top up.</P>
-        <P>Your 7-day free trial provides 5 GB of storage at no cost. No payment method is required to start a trial.</P>
+        <P>DataDrop uses <Hl>post-paid, usage-based billing</Hl>. Storage is charged by the second at a flat rate of ₹1.49 per GB per month. At the end of each calendar month, the total amount is collected via UPI AutoPay, never exceeding your configured monthly spending limit. If AutoPay collection fails, your account moves to read-only until the balance is resolved.</P>
+        <P>Your 15-day free trial provides 5 GB of storage at no cost. No payment method is required to start a trial.</P>
       </Section>
       <Section title="Zero Knowledge Vault">
         <P>Files stored in the Zero Knowledge Vault are encrypted on your device before upload using keys derived from your PIN. DataDrop cannot access, read, or recover Vault files. <Hl>If you lose your PIN and recovery phrase, your Vault files are permanently unrecoverable.</Hl> We accept no liability for loss of Vault data resulting from lost credentials.</P>
@@ -146,7 +146,7 @@ export function Privacy() {
       <Section title="How We Use Your Data">
         <ul style={{ marginBottom:12 }}>
           <Li>To provide the file storage and sharing service.</Li>
-          <Li>To calculate and deduct daily storage charges from your wallet.</Li>
+          <Li>To calculate storage charges and collect payment via UPI AutoPay at the end of each billing period.</Li>
           <Li>To send essential transactional emails (billing alerts, security notices).</Li>
           <Li>To investigate abuse reports and enforce our Terms of Service.</Li>
         </ul>
@@ -184,26 +184,32 @@ export function Privacy() {
 // ── Refund Policy ────────────────────────────────────────────────────────────
 export function RefundPolicy() {
   return (
-    <LegalShell title="Refund Policy" lastUpdated="1 July 2026">
-      <Section title="Wallet-Based Billing">
-        <P>DataDrop uses a pre-paid wallet model. You add funds to your wallet (minimum top-up: 10) and storage charges are deducted daily. There are no subscriptions or recurring card charges.</P>
+    <LegalShell title="Refund Policy" lastUpdated="10 July 2026">
+      <Section title="How Billing Works">
+        <P>DataDrop uses <Hl>post-paid, usage-based billing</Hl>. You are charged only for the storage you actually keep, measured by the second at ₹1.49 per GB per month. At the end of each month, the total is collected via UPI AutoPay, never exceeding your monthly spending limit.</P>
       </Section>
-      <Section title="Refund Eligibility">
-        <P><Hl>Unused wallet balance:</Hl> If you close your account, any remaining wallet balance above 10 is eligible for a refund. Refunds are processed to your original payment method within 7–10 business days.</P>
-        <P><Hl>Already-consumed charges:</Hl> Daily storage charges that have already been deducted are not refundable. Storage is consumed as a daily utility service.</P>
-        <P><Hl>Trial period:</Hl> The 7-day free trial is provided at no cost — there is nothing to refund for trial usage.</P>
+      <Section title="Non-Refundable Charges">
+        <P><Hl>Consumed storage charges</Hl> are non-refundable. Because you have real-time control over what you store and can delete any file at any moment to stop billing, completed charges are treated as accurate and final.</P>
+        <P>The 15-day free trial is provided at no cost — there is nothing to refund for trial usage.</P>
       </Section>
-      <Section title="How to Request a Refund">
-        <P>Email <Hl>billing@datadrop.co.in</Hl> from your registered email address with the subject "Wallet Refund Request". Include your registered email and the amount you wish to refund. We aim to respond within 2 business days.</P>
+      <Section title="Exceptions — When We Do Issue Refunds">
+        <P>We will issue a full refund or credit in the following circumstances:</P>
+        <ul style={{ marginBottom:12 }}>
+          <Li><Hl>Billing error:</Hl> You were charged an amount that does not match your actual byte-second usage records. Contact us and we will investigate and correct any discrepancy.</Li>
+          <Li><Hl>Charge exceeded spending limit:</Hl> If you were charged more than your configured spending limit due to a system error, we will refund the excess in full.</Li>
+          <Li><Hl>Verified service outage:</Hl> If DataDrop experienced an outage of more than 24 continuous hours that prevented you from accessing or deleting files, you may request a pro-rata credit for the affected period.</Li>
+          <Li><Hl>Duplicate charge:</Hl> If UPI AutoPay collected the same amount twice in the same billing period, we will refund the duplicate.</Li>
+        </ul>
+        <P>Refunds, where applicable, are processed to your original UPI payment method within 7–10 business days.</P>
       </Section>
-      <Section title="Failed Payments">
-        <P>If a wallet top-up payment fails, no charge is applied. If you believe you were charged for a failed transaction, contact us with your transaction ID and we will investigate and refund within 5 business days.</P>
+      <Section title="Payment Failure">
+        <P>If your UPI AutoPay collection fails at the end of a billing period, your account moves to read-only. Your files remain accessible for download. You have <Hl>35 days</Hl> to resolve the payment before permanent deletion of all data. You will receive email reminders at 7, 21, and 30 days.</P>
       </Section>
       <Section title="Ad-Free Plan">
         <P>Ad-Free access (purchased separately) is non-refundable once activated, as access is granted immediately upon purchase.</P>
       </Section>
       <Section title="Disputes">
-        <P>If you believe you have been incorrectly charged, please contact <Hl>billing@datadrop.co.in</Hl> before raising a chargeback with your bank. We resolve billing disputes promptly and chargebacks may result in account suspension.</P>
+        <P>If you believe you have been incorrectly charged, contact <Hl>billing@datadrop.co.in</Hl> before raising a chargeback with your bank. We resolve billing disputes promptly and chargebacks may result in account suspension.</P>
       </Section>
     </LegalShell>
   )
@@ -287,34 +293,34 @@ export function Pricing() {
   }
 
   return (
-    <LegalShell title="Pricing" lastUpdated="1 July 2026">
+    <LegalShell title="Pricing" lastUpdated="10 July 2026">
       <Section title="Simple, Pay-What-You-Use Storage">
-        <P>No subscriptions. No monthly commitments. Top up your wallet and pay only for the storage you actually use, billed daily.</P>
+        <P>No subscriptions. No monthly commitments. Set a spending limit and pay only for the storage you actually use, charged by the second.</P>
       </Section>
 
       <div style={card}>
         <div style={{ fontFamily:"'Space Grotesk',sans-serif", fontSize:22, fontWeight:700,
                       color:S.textP, marginBottom:6 }}>Free Trial</div>
-        <div style={{ fontSize:13, color:S.textS, marginBottom:16 }}>7 days · 5 GB · No card required</div>
+        <div style={{ fontSize:13, color:S.textS, marginBottom:16 }}>15 days · 5 GB · No card required</div>
         <ul style={{ fontSize:14, color:S.textS, lineHeight:1.8 }}>
           <Li>5 GB total storage</Li>
           <Li>File sharing (registered users only)</Li>
           <Li>Zero Knowledge Vault</Li>
           <Li>Zero Knowledge Workspaces (coming soon)</Li>
-          <Li>Trash &amp; version history</Li>
+          <Li>Version history</Li>
         </ul>
       </div>
 
-      <div style={{...card, border:`1px solid rgba(91,94,244,.35)`, background:'rgba(91,94,244,.05)'}}>
+      <div style={{...card, border:`1px solid rgba(99,102,241,.35)`, background:'rgba(99,102,241,.05)'}}>
         <div style={{ fontFamily:"'Space Grotesk',sans-serif", fontSize:22, fontWeight:700,
                       color:S.textP, marginBottom:6 }}>Pay As You Go</div>
-        <div style={{ fontSize:13, color:S.textS, marginBottom:16 }}>After trial · Minimum wallet top-up: 10</div>
+        <div style={{ fontSize:13, color:S.textS, marginBottom:16 }}>After trial · ₹1.49 per GB per month · Set your monthly limit</div>
         <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:16, marginBottom:20 }}>
           {[
-            ['5 GB',  '₹1.00',  '/month'],
-            ['25 GB', '₹3.50',  '/month'],
-            ['100 GB','₹12.00', '/month'],
-            ['1 TB',  '₹100.00','/month'],
+            ['10 GB',  '₹14.90',  '/month'],
+            ['50 GB',  '₹74.50',  '/month'],
+            ['100 GB', '₹149.00', '/month'],
+            ['500 GB', '₹745.00', '/month'],
           ].map(([size, price, per]) => (
             <div key={size} style={{ background:S.bg2, border:`1px solid ${S.border}`,
                                      borderRadius:10, padding:14 }}>
@@ -325,7 +331,7 @@ export function Pricing() {
           ))}
         </div>
         <div style={{ fontSize:12, color:S.textT, lineHeight:1.7 }}>
-          Billed daily at 1/30th of monthly rate. Unused days are not charged. Storage above your plan limit is billed at the next tier rate.
+          Charged by the second at ₹1.49 per GB per month. Billed monthly via UPI AutoPay. When you delete a file, billing stops immediately.
         </div>
       </div>
 
@@ -340,15 +346,14 @@ export function Pricing() {
       <Section title="What's Always Free">
         <ul style={{ fontSize:14, color:S.textS, lineHeight:1.8 }}>
           <Li>Downloading and previewing your files</Li>
-          <Li>Trash (files in trash are not billed)</Li>
           <Li>File sharing to other DataDrop users</Li>
           <Li>Account and security features</Li>
           <Li>Customer support</Li>
         </ul>
       </Section>
 
-      <Section title="Wallet Top-Up">
-        <P>Add funds to your wallet in any amount from 10. Unused balance is refundable (see Refund Policy). Payments are processed via Razorpay and are subject to applicable GST.</P>
+      <Section title="UPI AutoPay">
+        <P>After your trial, set a monthly spending limit and authorise UPI AutoPay. At the end of each month, the exact amount owed (never more than your limit) is collected automatically. Payments are processed via Razorpay and are subject to applicable GST.</P>
       </Section>
 
       <div style={{ marginTop:24, textAlign:'center' }}>

@@ -15,8 +15,8 @@ test.describe('Sharing', () => {
     await page.screenshot({ path: 'tests/screenshots/shared-by-me.png', fullPage: true })
   })
 
-  test('Shared with me tab loads', async ({ page }) => {
-    const receivedBtn = page.locator('button:has-text("Shared with me")')
+  test('Received tab loads', async ({ page }) => {
+    const receivedBtn = page.locator('button:has-text("Received"), button:has-text("Shared with me")')
     await receivedBtn.click()
     await page.waitForTimeout(2000)
     await expect(page.locator('body')).not.toContainText('Internal error')

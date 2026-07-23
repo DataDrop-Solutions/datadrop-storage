@@ -1,0 +1,15 @@
+/* TEAM */
+Project: DataDrop
+Contact: support@datadrop.co.in
+Location: India
+
+/* THANKS */
+Cloudflare Pages — hosting
+Backblaze B2 — storage
+Clerk — authentication
+
+/* SITE */
+Last update: 2026-07-10
+Language: English
+Standards: HTML5, CSS3, JSON-LD, WCAG 2.1 AA
+Components: Cloudflare Workers, D1, KV, R2

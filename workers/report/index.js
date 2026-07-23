@@ -5,7 +5,7 @@
 // Route: GET  /report/:shareId/status → check delivery status
 // ============================================================
 
-import { corsResponse, handleOptions, validateSession, newId, sendEmail, checkRateLimit, checkApiRateLimit } from '../shared/utils.js';
+import { corsResponse, handleOptions, validateSession, newId, sendEmail, checkRateLimit, buildAccumulationBatch, decrementStorageBytes } from '../shared/utils.js';
 
 export default {
   async fetch(request, env) {
@@ -13,10 +13,6 @@ export default {
 
     const session = await validateSession(request, env);
     if (!session) return corsResponse({ error: 'Unauthorized' }, 401);
-
-    if (!(await checkApiRateLimit(env, session.userId))) {
-      return corsResponse({ error: 'Too many requests' }, 429);
-    }
 
     const url  = new URL(request.url);
     const path = url.pathname.replace('/report', '');
@@ -111,7 +107,7 @@ async function confirmReceipt(request, env, session) {
   if (!shareId) return corsResponse({ error: 'shareId required' }, 400);
 
   const share = await env.DB.prepare(
-    `SELECT s.*, f.user_id as owner_id
+    `SELECT s.*, f.user_id as owner_id, f.size_bytes, f.storage_key, f.bucket, f.deleted_at
      FROM shares s JOIN files f ON f.id = s.file_id
      WHERE s.id = ? AND s.recipient_user_id = ? AND s.status = 'active'`
   ).bind(shareId, session.userId).first();
@@ -126,11 +122,20 @@ async function confirmReceipt(request, env, session) {
     "UPDATE shares SET confirmed_at = ?, status = 'completed' WHERE id = ?"
   ).bind(now, shareId).run();
 
-  // Queue file deletion (sender's file)
+  // Delete via canonical pipeline: purge keys → decrement billing → soft-delete → queue
+  await env.DB.prepare('DELETE FROM file_keys WHERE file_id = ?').bind(share.file_id).run();
+  if (!share.deleted_at && (share.size_bytes || 0) > 0) {
+    await env.DB.batch(buildAccumulationBatch(share.owner_id, env.DB, -(share.size_bytes || 0)));
+    await decrementStorageBytes(env, share.owner_id, share.size_bytes || 0);
+  }
+  await env.DB.prepare(
+    'UPDATE files SET accessible = 0, b2_delete_queued = 1, deleted_at = COALESCE(deleted_at, ?), updated_at = ? WHERE id = ?'
+  ).bind(now, now, share.file_id).run();
   await env.QUEUE.send({
     type: 'DELETE_FILE_FROM_BUCKET',
     fileId: share.file_id,
-    userId: share.owner_id,
+    storageKey: share.storage_key,
+    bucket: share.bucket,
     deleteFromD1: true,
   });
 
@@ -188,9 +193,12 @@ async function getShareStatus(shareId, env, session) {
 
 // ---------- Helpers ----------
 async function uploadEvidenceToB2(env, key, base64Data, mimeType) {
-  const { getB2Auth, getB2UploadUrl } = await import('../shared/utils.js');
-  const auth      = await getB2Auth(env.B2_COLD_KEY_ID, env.B2_COLD_APP_KEY);
-  const uploadUrl = await getB2UploadUrl(auth, env.B2_COLD_BUCKET_ID);
+  const { getB2Auth, getB2UploadUrl, b2CredsForBucket } = await import('../shared/utils.js');
+  // Use B2_MAIN when available; fall back to B2_COLD
+  const bucketType = env.B2_MAIN_KEY_ID ? 'b2_main' : 'b2_cold';
+  const creds      = b2CredsForBucket(env, bucketType);
+  const auth       = await getB2Auth(creds.keyId, creds.appKey);
+  const uploadUrl  = await getB2UploadUrl(auth, creds.bucketId);
 
   const binary = Uint8Array.from(atob(base64Data), c => c.charCodeAt(0));
 
@@ -210,7 +218,8 @@ async function uploadEvidenceToB2(env, key, base64Data, mimeType) {
   const data = await resp.json();
 
   // Return internal URL (never exposed to client — for admin use only)
-  return `internal://b2-cold/${key}`;
+  const scheme = env.B2_MAIN_KEY_ID ? 'b2-main' : 'b2-cold';
+  return `internal://${scheme}/${key}`;
 }
 
 function mimeToExt(mime) {

@@ -5,7 +5,7 @@
 // Verifies HMAC-SHA256 signature before processing
 // ============================================================
 
-import { sendEmail } from '../shared/utils.js';
+import { sendEmail, safeCompare } from '../shared/utils.js';
 
 export async function handleRazorpayWebhook(request, env) {
   const body      = await request.text();
@@ -37,6 +37,92 @@ async function onPaymentCaptured(payload, env) {
   const paymentId = payment.id;
   const amountRs  = payment.amount / 100;
   const notes     = payment.notes || {};
+
+  // Idempotency: skip if already processed (billing pre-credit or prior webhook delivery) (HIGH-4)
+  const alreadyProcessed = await env.KV.get(`webhook_pay:${paymentId}`).catch(() => null);
+  if (alreadyProcessed) return;
+  await env.KV.put(`webhook_pay:${paymentId}`, 'webhook', { expirationTtl: 7 * 86400 }).catch(() => {});
+
+  // Mandate setup backup activation — if confirmMandate was called before capture
+  if (notes.type === 'mandate_setup') {
+    const userId = notes.userId;
+    if (!userId) return;
+    const now = Date.now();
+    await env.DB.batch([
+      env.DB.prepare(
+        "UPDATE wallet_mandates SET status = 'active', is_active = 1, activated_at = ? WHERE user_id = ? AND status = 'created' AND razorpay_mandate_id = ?"
+      ).bind(now, userId, orderId),
+      env.DB.prepare("UPDATE users SET status = 'active', updated_at = ? WHERE id = ? AND status = 'trial'")
+        .bind(now, userId),
+    ]);
+    return;
+  }
+
+  // Mandate upgrade — webhook fallback for when confirmUpgradeMandate wasn't called
+  if (notes.type === 'mandate_upgrade') {
+    const userId = notes.userId;
+    if (!userId) return;
+
+    const newMandate = await env.DB.prepare(
+      "SELECT id, razorpay_customer_id, protection_limit FROM wallet_mandates WHERE user_id = ? AND razorpay_mandate_id = ? AND status = 'created' AND is_active = 0"
+    ).bind(userId, orderId).first();
+    // If already activated (confirmUpgradeMandate beat us), nothing to do
+    if (!newMandate) return;
+
+    const oldMandate = await env.DB.prepare(
+      "SELECT id FROM wallet_mandates WHERE user_id = ? AND status = 'active' AND is_active = 1"
+    ).bind(userId).first();
+
+    // Fetch newest UPI token for the customer
+    const auth = btoa(`${env.RAZORPAY_KEY_ID}:${env.RAZORPAY_KEY_SECRET}`);
+    let tokenId = null;
+    if (newMandate.razorpay_customer_id) {
+      const tokensResp = await fetch(
+        `https://api.razorpay.com/v1/customers/${newMandate.razorpay_customer_id}/tokens`,
+        { headers: { Authorization: `Basic ${auth}` } }
+      ).catch(() => null);
+      if (tokensResp?.ok) {
+        const tokensData = await tokensResp.json().catch(() => ({}));
+        const upiTokens = (tokensData.items || []).filter(t => t.method === 'upi' && t.recurring === true);
+        upiTokens.sort((a, b) => (b.created_at || 0) - (a.created_at || 0));
+        tokenId = upiTokens[0]?.id || null;
+      }
+    }
+
+    const now = Date.now();
+
+    // Optimistic lock on old mandate — same concurrency protection as confirmUpgradeMandate
+    if (oldMandate) {
+      const supersedeResult = await env.DB.prepare(
+        "UPDATE wallet_mandates SET status = 'cancelled', is_active = 0, superseded_at = ? WHERE id = ? AND is_active = 1"
+      ).bind(now, oldMandate.id).run();
+      // If 0 changes, another process (confirmUpgradeMandate) already won — skip
+      if (supersedeResult.meta.changes !== 1) return;
+    }
+
+    // Activate new mandate + update wallet
+    // Old token stays alive — cleanup worker cancels it after the grace period
+    await env.DB.batch([
+      env.DB.prepare("UPDATE wallet_mandates SET status = 'active', is_active = 1, activated_at = ?, razorpay_token_id = ? WHERE id = ?")
+        .bind(now, tokenId, newMandate.id),
+      env.DB.prepare('UPDATE users SET wallet_balance = wallet_balance + 1, wallet_limit = ?, updated_at = ? WHERE id = ?')
+        .bind(newMandate.protection_limit, now, userId),
+    ]);
+    return;
+  }
+
+  // Billing charge confirmed — credit wallet and restore read-only accounts
+  if (notes.type === 'billing_charge') {
+    const userId = notes.userId;
+    if (!userId) return;
+    await env.DB.prepare(
+      "UPDATE users SET wallet_balance = wallet_balance + ?, updated_at = ? WHERE id = ?"
+    ).bind(amountRs, Date.now(), userId).run();
+    await env.DB.prepare(
+      "UPDATE users SET status = 'active', updated_at = ? WHERE id = ? AND status = 'read_only'"
+    ).bind(Date.now(), userId).run();
+    return;
+  }
 
   // Wallet top-up
   if (notes.type === 'wallet_topup') {
@@ -85,6 +171,7 @@ async function onPaymentCaptured(payload, env) {
   }
 }
 
+
 async function onPaymentFailed(payload, env) {
   const payment = payload.payment?.entity;
   if (!payment) return;
@@ -105,5 +192,5 @@ async function verifyRazorpayWebhook(body, signature, secret) {
   );
   const sig = await crypto.subtle.sign('HMAC', key, new TextEncoder().encode(body));
   const hex = Array.from(new Uint8Array(sig)).map(b => b.toString(16).padStart(2, '0')).join('');
-  return hex === signature;
+  return safeCompare(hex, signature);
 }

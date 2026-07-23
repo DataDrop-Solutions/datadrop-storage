@@ -1,0 +1,13 @@
+# Normalise trailing slash on root
+/index.html / 301
+
+# Legacy anchor paths
+/pricing /#pricing 301
+/security /#security 301
+/faq /#faq 301
+
+# Legal pages — served as folder index files; no redirect needed
+# (Cloudflare Pages resolves /terms → /terms/index.html automatically)
+
+# 404 fallback — Pages serves index.html for SPA behaviour
+/* /index.html 200

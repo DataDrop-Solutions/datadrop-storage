@@ -35,6 +35,22 @@ export const api = {
   initiateTopup:    (data)  => req('POST', '/user/wallet/topup', data),
   confirmTopup:     (data)  => req('POST', '/user/wallet/confirm', data),
 
+  // UPI AutoPay mandate
+  getMandate:            ()      => req('GET',    '/user/mandate'),
+  createMandate:         (data)  => req('POST',   '/user/mandate/create', data),
+  confirmMandate:        (data)  => req('POST',   '/user/mandate/confirm', data),
+  updateMandate:         (data)  => req('PUT',    '/user/mandate', data),
+  cancelMandate:         ()      => req('DELETE', '/user/mandate'),
+  createUpgradeMandate:  (data)  => req('POST',   '/user/mandate/upgrade', data),
+  confirmUpgradeMandate: (data)  => req('POST',   '/user/mandate/upgrade/confirm', data),
+  cancelUpgradeMandate:  ()      => req('DELETE', '/user/mandate/upgrade/cancel'),
+
+  // Billing v5 — Payment Recovery
+  billingHistory:     ()      => req('GET',  '/user/billing/history'),
+  billingRecovery:    ()      => req('GET',  '/user/billing/recovery-status'),
+  initiatePayNow:     ()      => req('POST', '/user/billing/pay-now'),
+  confirmPayNow:      (data)  => req('POST', '/user/billing/pay-now/confirm', data),
+
   // Ad-free
   subscribeAdFree:  ()      => req('POST', '/user/adfree/subscribe'),
   cancelAdFree:     ()      => req('DELETE','/user/adfree'),
