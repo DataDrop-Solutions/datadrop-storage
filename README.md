@@ -104,10 +104,9 @@ Cron-triggered Workers handle monthly billing, daily D1 backups, trial expiry, a
 | Async jobs | Cloudflare Queues |
 | Object storage | Backblaze B2 (single bucket — `datadrop-cold`) |
 | Database backups | Cloudflare R2 (daily D1 → JSONL export) |
-| Auth | Clerk (session), Firebase Auth (phone OTP) |
+| Auth | Clerk (session) |
 | Payments | Razorpay (wallet + UPI AutoPay mandates) |
 | Email | Resend |
-| SMS/OTP | MSG91 |
 | Frontend | React 18, Vite, React Router |
 | Frontend hosting | Cloudflare Pages |
 | Encryption | Web Crypto API — ECDH P-256, AES-256-GCM, PBKDF2 |
@@ -124,7 +123,7 @@ datadrop-storage/
 │   ├── api-router/            # Main router + route handlers → bundled into datadrop-api
 │   │   ├── files.js           # File CRUD, folders, versions, trash
 │   │   ├── shares.js          # Share link management
-│   │   ├── user.js            # Profile, wallet top-up, OTP, billing meter
+│   │   ├── user.js            # Profile, wallet top-up, mandates, billing meter
 │   │   ├── vault.js           # E2EE vault — ECDH P-256 + per-file AES-256-GCM DEK
 │   │   └── teams.js           # E2EE account-to-account team workspaces
 │   ├── upload/                # datadrop-upload — B2 chunked/multipart upload proxy
@@ -152,7 +151,7 @@ datadrop-storage/
 
 DataDrop is built for Cloudflare's platform, so running your own instance means provisioning the same primitives under your own account.
 
-**Prerequisites:** a Cloudflare account, a Backblaze B2 account, and accounts with Clerk, Razorpay, Resend, and MSG91 (or equivalents you adapt the code for).
+**Prerequisites:** a Cloudflare account, a Backblaze B2 account, and accounts with Clerk, Razorpay, and Resend (or equivalents you adapt the code for).
 
 ```bash
 # Install dependencies
