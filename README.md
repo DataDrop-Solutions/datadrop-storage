@@ -28,22 +28,22 @@ Most cloud storage sells you a fixed plan sized for your worst month. DataDrop b
 ![File manager](docs/screenshots/files.jpg)
 
 ### Vault (zero-knowledge, end-to-end encrypted)
-- **V2 (current):** ECDH P-256 key pair per user; every file gets its own AES-256-GCM data key, wrapped with your public key and stored server-side — DataDrop can store the wrapped key but never unwrap it without your PIN
-- **V1 (legacy):** PIN → PBKDF2 → AES-256 vault key, encrypted client-side before upload
+- ECDH P-256 key pair per user; every file gets its own AES-256-GCM data key, wrapped with your public key and stored server-side — DataDrop can store the wrapped key but never unwrap it without your PIN
 - "Forgot PIN" recovery flow, fully separate from the account password
 
 ![Vault unlock screen](docs/screenshots/vault.jpg)
 
 ### Secured Sharing (Teams)
 - Account-to-account encrypted workspaces for collaborating on sensitive files
-- Per-team key wrapping (`team_keys`) — decrypted locally, never on DataDrop's servers
+- Per-team key wrapping (`team_keys`) — the team key is wrapped per member with an ephemeral ECDH key, decrypted locally, never on DataDrop's servers
 - Member roles, invites, and per-workspace billing
 
 ![Encrypted workspace](docs/screenshots/workspace.jpg)
 
 ### Billing
-- Real-time storage usage and cost breakdown by workspace
-- UPI AutoPay — set a monthly spend limit, get billed automatically, never charged more than your cap
+- Real-time storage usage and cost breakdown by workspace, ₹1.49/GB/month
+- UPI AutoPay mandates via Razorpay — raising your spend limit creates a new mandate while the old one stays live for a 48-hour grace period (`superseded_at`), so an upgrade never interrupts billing
+- Failed AutoPay charges retry automatically once a day, with reminder emails; unpaid accounts move into a 35-day retention window before data is permanently deleted
 - Storage reconciled hourly; bill preview generated before month-end; final charge deducted on the 1st
 
 ![Billing & usage](docs/screenshots/billing.jpg)
@@ -76,9 +76,9 @@ DataDrop runs as a set of Cloudflare Workers behind a shared D1 database, KV cac
               ┌──────────┘     │    └──────────┐               │
               │                │               │               │
         ┌─────▼─────┐   ┌──────▼─────┐  ┌──────▼──────┐        │
-        │ D1 (SQL)  │   │  KV (cache) │  │ Queue        │       │
-        │ datadrop- │   │  sessions   │  │ migrations   │       │
-        │   db      │   │             │  │ (async)      │       │
+        │ D1 (SQL)  │   │  KV (cache) │  │   Queue      │       │
+        │ datadrop- │   │  sessions   │  │ (async jobs) │       │
+        │   db      │   │             │  │              │       │
         └───────────┘   └─────────────┘  └──────────────┘       │
                                                                   │
                               ┌───────────────────────────────────┘
@@ -90,7 +90,7 @@ DataDrop runs as a set of Cloudflare Workers behind a shared D1 database, KV cac
                      └──────────────────┘
 ```
 
-Cron-triggered Workers handle billing, backups, trial expiry, and hourly storage reconciliation. A queue consumer processes async file migrations (files ↔ vault ↔ team) off the request path to stay under Worker CPU limits.
+Cron-triggered Workers handle monthly billing, daily D1 backups, trial expiry, and hourly reconciliation (storage usage, expired trash, stale uploads, superseded mandates). A queue consumer confirms uploads into D1, deletes B2 objects, and processes full account-data wipes off the request path to stay under Worker CPU limits.
 
 ## Tech stack
 
@@ -101,7 +101,7 @@ Cron-triggered Workers handle billing, backups, trial expiry, and hourly storage
 | Cache / sessions | Cloudflare KV |
 | Async jobs | Cloudflare Queues |
 | Object storage | Backblaze B2 (cold + vault buckets) |
-| Backup | Cloudflare R2 |
+| Database backups | Cloudflare R2 (daily D1 → JSONL export) |
 | Auth | Clerk (session), Firebase Auth (phone OTP) |
 | Payments | Razorpay (wallet + UPI AutoPay mandates) |
 | Email | Resend |
@@ -123,17 +123,17 @@ datadrop-storage/
 │   │   ├── files.js           # File CRUD, folders, sharing, versions
 │   │   ├── shares.js          # Share link management
 │   │   ├── user.js            # Profile, wallet top-up, OTP, billing meter
-│   │   ├── vault.js           # E2EE vault (v1 PIN+AES, v2 ECDH P-256 + per-file DEK)
+│   │   ├── vault.js           # E2EE vault — ECDH P-256 + per-file AES-256-GCM DEK
 │   │   └── teams.js           # E2EE account-to-account team workspaces
 │   ├── upload/                # datadrop-upload — B2 chunked/multipart upload proxy
 │   ├── download/               files.datadrop.co.in — CDN download handler
 │   ├── stream/                 stream.datadrop.co.in — video streaming
 │   ├── admin/                  admin.datadrop.co.in — internal admin panel
-│   ├── billing/                Cron: Razorpay billing (1st of month)
-│   ├── backup/                 Cron: daily R2 → B2 backup
+│   ├── billing/                Cron: Razorpay billing, AutoPay retry (1st of month + daily)
+│   ├── backup/                 Cron: daily D1 → R2 JSONL export + trash cleanup
 │   ├── trial/                  Cron: trial expiry enforcement
-│   ├── reconcile/               Cron: hourly storage byte reconciliation
-│   ├── migration/               Queue consumer: async file migrations
+│   ├── reconcile/               Cron: hourly usage reconciliation, trash/upload/mandate cleanup
+│   ├── migration/               Queue consumer: confirm uploads, delete B2 objects, wipe account data
 │   ├── report/                  User-initiated file reports
 │   ├── webhook/                 Clerk + Razorpay webhook handlers
 │   └── shared/utils.js          Shared auth, CORS, D1 helpers, B2 API, email
