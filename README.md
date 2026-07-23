@@ -54,20 +54,20 @@ DataDrop runs as a set of Cloudflare Workers behind a shared D1 database, KV cac
 
 ```
                                    ┌─────────────────────┐
-                                   │   Cloudflare Pages   │
-                                   │  app.datadrop.co.in  │
-                                   │   (React + Vite)     │
-                                   └──────────┬───────────┘
+                                   │   Cloudflare Pages  │
+                                   │  app.datadrop.co.in │
+                                   │   (React + Vite)    │
+                                   └──────────┬──────────┘
                                               │
               ┌───────────────────────────────┼───────────────────────────────┐
               │                               │                               │
    api.datadrop.co.in              files.datadrop.co.in            stream.datadrop.co.in
    /user /files /vault                  (CDN delivery)                (video streaming)
-   /teams /shares                               │                               │
+   /teams /shares                             │                               │
               │                               │                               │
               └───────────────┬───────────────┴───────────────┬───────────────┘
                               │                               │
-                     ┌────────▼────────┐             ┌────────▼────────┐
+                     ┌────────▼─────────┐             ┌───────▼──────────┐
                      │  datadrop-api    │             │ datadrop-upload  │
                      │  (main Worker)   │             │ (chunked B2      │
                      │                  │             │  upload proxy)   │
@@ -75,19 +75,19 @@ DataDrop runs as a set of Cloudflare Workers behind a shared D1 database, KV cac
                          │     │    │                          │
               ┌──────────┘     │    └──────────┐               │
               │                │               │               │
-        ┌─────▼─────┐   ┌──────▼─────┐  ┌──────▼──────┐        │
-        │ D1 (SQL)  │   │  KV (cache) │  │   Queue      │       │
-        │ datadrop- │   │  sessions   │  │ (async jobs) │       │
-        │   db      │   │             │  │              │       │
-        └───────────┘   └─────────────┘  └──────────────┘       │
-                                                                  │
-                              ┌───────────────────────────────────┘
+        ┌─────▼─────┐   ┌──────▼──────┐  ┌──────▼───────┐      │
+        │ D1 (SQL)  │   │  KV (cache) │  │   Queue      │      │
+        │ datadrop- │   │  sessions   │  │ (async jobs) │      │
+        │   db      │   │             │  │              │      │
+        └───────────┘   └─────────────┘  └──────────────┘      │
+                                                               │
+                              ┌────────────────────────────────┘
                               │
                      ┌────────▼────────┐
-                     │  Backblaze B2    │
-                     │  datadrop-cold   │  ← regular files
-                     │  datadrop-vault  │  ← E2EE vault objects
-                     └──────────────────┘
+                     │  Backblaze B2   │
+                     │  datadrop-cold  │  ← regular files
+                     │  datadrop-vault │  ← E2EE vault objects
+                     └─────────────────┘
 ```
 
 Cron-triggered Workers handle monthly billing, daily D1 backups, trial expiry, and hourly reconciliation (storage usage, expired trash, stale uploads, superseded mandates). A queue consumer confirms uploads into D1, deletes B2 objects, and processes full account-data wipes off the request path to stay under Worker CPU limits.
