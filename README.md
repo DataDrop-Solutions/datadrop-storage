@@ -21,7 +21,8 @@ Most cloud storage sells you a fixed plan sized for your worst month. DataDrop b
 
 ### Files
 - Drag-and-drop upload with folders, versioning, and CDN-backed delivery
-- Chunked/multipart uploads for large files (B2 large-file API)
+- SHA-256 dedup on upload; single-part proxy under 100 MB, B2 large-file API (multi-part) at or above 100 MB
+- Deleting a folder moves it and its contents to a 30-day trash with restore; deleting a single file is immediate
 - Share links with expiry and access controls
 - Inline video streaming with signed URLs
 
@@ -36,7 +37,7 @@ Most cloud storage sells you a fixed plan sized for your worst month. DataDrop b
 ### Secured Sharing (Teams)
 - Account-to-account encrypted workspaces for collaborating on sensitive files
 - Per-team key wrapping (`team_keys`) — the team key is wrapped per member with an ephemeral ECDH key, decrypted locally, never on DataDrop's servers
-- Member roles, invites, and per-workspace billing
+- Role-based access (read / upload / full / admin / owner) through a unified permission engine, plus invites; storage used by a team is attributed back to the workspace owner's bill
 
 ![Encrypted workspace](docs/screenshots/workspace.jpg)
 
@@ -121,7 +122,7 @@ datadrop-storage/
 │   └── migration_v*.sql       # Incremental migrations
 ├── workers/
 │   ├── api-router/            # Main router + route handlers → bundled into datadrop-api
-│   │   ├── files.js           # File CRUD, folders, sharing, versions
+│   │   ├── files.js           # File CRUD, folders, versions, trash
 │   │   ├── shares.js          # Share link management
 │   │   ├── user.js            # Profile, wallet top-up, OTP, billing meter
 │   │   ├── vault.js           # E2EE vault — ECDH P-256 + per-file AES-256-GCM DEK
@@ -144,7 +145,7 @@ datadrop-storage/
         ├── components/FileGrid.jsx    # Shared file/folder grid
         ├── components/VaultSetup.jsx  # Vault unlock + E2EE client-side crypto
         ├── components/TeamsView.jsx   # Team workspace UI
-        └── lib/api.js                 # Typed API client
+        └── lib/api.js                 # API client (fetch wrapper + client-side crypto helpers)
 ```
 
 ## Getting started (self-hosting)
