@@ -25,15 +25,15 @@ B2_MAIN_BUCKET  = "datadrop-cold"
 [secrets]
 # Set via: wrangler secret put <NAME>
 # CLERK_SECRET_KEY
-# B2_COLD_KEY_ID
-# B2_COLD_APP_KEY
-# B2_VAULT_KEY_ID
-# B2_VAULT_APP_KEY
+# B2_COLD_KEY_ID       ← b2CredsForBucket() uses these for uploads to b2_main
+# B2_COLD_APP_KEY        (all new uploads, vault included) and b2_cold alike
 # B2_COLD_BUCKET_ID
+# B2_VAULT_KEY_ID      ← legacy: only serves/deletes files uploaded before the
+# B2_VAULT_APP_KEY       single-bucket consolidation (migration_v5)
 # B2_VAULT_BUCKET_ID
-# B2_MAIN_KEY_ID      ← new single bucket credentials
-# B2_MAIN_APP_KEY     ← (activate by setting these secrets)
-# B2_MAIN_BUCKET_ID
+# B2_MAIN_KEY_ID       ← read directly (not via b2CredsForBucket) by
+# B2_MAIN_APP_KEY        download/stream/migration workers for files
+# B2_MAIN_BUCKET_ID       already marked bucket = 'b2_main' in D1
 # RAZORPAY_MANDATE_PLAN_ID
 # RESEND_API_KEY
 

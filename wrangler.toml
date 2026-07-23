@@ -75,9 +75,9 @@ zone_name = "datadrop.co.in"
 # B2_COLD_KEY_ID
 # B2_COLD_APP_KEY
 # B2_COLD_BUCKET_ID
-# B2_VAULT_KEY_ID
-# B2_VAULT_APP_KEY
-# B2_VAULT_BUCKET_ID
+# B2_VAULT_KEY_ID      ← legacy: only serves/deletes files uploaded before the
+# B2_VAULT_APP_KEY       single-bucket consolidation (migration_v5); all new
+# B2_VAULT_BUCKET_ID     uploads (vault included) go to B2_COLD/B2_MAIN
 # RESEND_API_KEY
 # RAZORPAY_KEY_ID
 # RAZORPAY_KEY_SECRET
@@ -86,5 +86,13 @@ zone_name = "datadrop.co.in"
 # ADMIN_SECRET         (openssl rand -hex 32)
 # ADMIN_PASSWORD       (your chosen password)
 # CF_API_TOKEN
-# (B2_MAIN reuses B2_COLD credentials — datadrop-cold IS the main bucket)
 # RAZORPAY_MANDATE_PLAN_ID  ← Razorpay recurring plan ID for UPI autopay mandates
+#
+# B2_MAIN_KEY_ID / B2_MAIN_APP_KEY / B2_MAIN_BUCKET_ID
+#   Read directly by download/index.js, stream/index.js, and migration/index.js
+#   for files marked bucket = 'b2_main' in D1. Note: files.js's upload/read path
+#   goes through b2CredsForBucket(), which has no 'b2_main' case and falls back
+#   to B2_COLD_* credentials for anything that isn't 'b2_vault' — so uploads
+#   authenticate with B2_COLD_*, while download/stream/delete for the same file
+#   authenticate with B2_MAIN_*. Keep both sets of credentials valid for the
+#   same underlying bucket until that's unified.
