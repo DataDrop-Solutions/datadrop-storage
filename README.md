@@ -85,8 +85,9 @@ DataDrop runs as a set of Cloudflare Workers behind a shared D1 database, KV cac
                               │
                      ┌────────▼────────┐
                      │  Backblaze B2   │
-                     │  datadrop-cold  │  ← regular files
-                     │  datadrop-vault │  ← E2EE vault objects
+                     │  datadrop-cold  │  ← single bucket for all files
+                     │                 │    (Vault files are encrypted
+                     │                 │     client-side before upload)
                      └─────────────────┘
 ```
 
@@ -100,7 +101,7 @@ Cron-triggered Workers handle monthly billing, daily D1 backups, trial expiry, a
 | Database | Cloudflare D1 (SQLite at the edge) |
 | Cache / sessions | Cloudflare KV |
 | Async jobs | Cloudflare Queues |
-| Object storage | Backblaze B2 (cold + vault buckets) |
+| Object storage | Backblaze B2 (single bucket — `datadrop-cold`) |
 | Database backups | Cloudflare R2 (daily D1 → JSONL export) |
 | Auth | Clerk (session), Firebase Auth (phone OTP) |
 | Payments | Razorpay (wallet + UPI AutoPay mandates) |
