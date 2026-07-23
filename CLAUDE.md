@@ -1,6 +1,6 @@
 # DataDrop — Claude Code Context
 
-DataDrop is a privacy-first cloud storage service built entirely on Cloudflare's edge infrastructure. Users upload files to Backblaze B2 (cold storage and vault), pay per GB/month via Razorpay wallet, and can optionally lock files in an end-to-end encrypted Vault.
+DataDrop is a privacy-first cloud storage service built entirely on Cloudflare's edge infrastructure. Users upload files to a single Backblaze B2 bucket, pay per GB/month via Razorpay wallet, and can optionally lock files in an end-to-end encrypted Vault.
 
 ## Repository layout
 
@@ -16,21 +16,21 @@ datadrop-storage/
 ├── workers/
 │   ├── api-router/            # Main router + route handlers (bundled into datadrop-api)
 │   │   ├── index.js           # Subdomain routing + scheduled + queue entrypoint
-│   │   ├── files.js           # File CRUD, folders, sharing, versions
+│   │   ├── files.js           # File CRUD, folders, versions, trash
 │   │   ├── shares.js          # Share link management
-│   │   ├── user.js            # Profile, wallet top-up, OTP, billing meter
-│   │   ├── vault.js           # E2EE vault (v1 PIN+AES, v2 ECDH P-256+per-file DEK)
+│   │   ├── user.js            # Profile, wallet top-up, mandates, billing meter
+│   │   ├── vault.js           # E2EE vault — ECDH P-256 + per-file AES-256-GCM DEK (v1 PIN+AES paths still served for pre-existing accounts)
 │   │   └── teams.js           # E2EE account-to-account team workspaces
 │   ├── upload/                # Separate worker: datadrop-upload (own wrangler.toml)
 │   │   └── index.js           # B2 chunked/multipart upload proxy
 │   ├── download/              # files.datadrop.co.in — CDN download handler
 │   ├── stream/                # stream.datadrop.co.in — video streaming
 │   ├── admin/                 # admin.datadrop.co.in — admin panel
-│   ├── billing/               # Cron: Razorpay billing (1st of month)
-│   ├── backup/                # Cron: daily R2→B2 backup
+│   ├── billing/               # Cron: Razorpay billing (1st of month) + daily AutoPay retry
+│   ├── backup/                # Cron: daily D1 → R2 JSONL export + trash cleanup
 │   ├── trial/                 # Cron: trial expiry enforcement
-│   ├── reconcile/             # Cron: hourly storage byte reconciliation
-│   ├── migration/             # Queue consumer: async file migrations
+│   ├── reconcile/             # Cron: hourly usage reconciliation, trash/upload/mandate cleanup
+│   ├── migration/             # Queue consumer: confirm uploads, delete B2 objects, wipe account data
 │   ├── report/                # User-initiated file reports
 │   ├── webhook/               # Clerk + Razorpay webhook handlers
 │   └── shared/
@@ -41,7 +41,7 @@ datadrop-storage/
     │   ├── components/FileGrid.jsx   # Shared file/folder grid (files, vault, teams views)
     │   ├── components/VaultSetup.jsx # Vault unlock, E2EE operations, vault FileGrid
     │   ├── components/TeamsView.jsx  # Team workspace UI
-    │   └── lib/api.js            # Typed API client wrapping all worker endpoints
+    │   └── lib/api.js            # API client (fetch wrapper + client-side crypto helpers) wrapping all worker endpoints
     └── vite.config.js
 ```
 
@@ -52,11 +52,10 @@ datadrop-storage/
 | Cloudflare Workers | Cloudflare | datadrop-api, datadrop-upload |
 | D1 Database | Cloudflare | datadrop-db |
 | KV Namespace | Cloudflare | (id in wrangler.toml) |
-| Cold Storage | Backblaze B2 | datadrop-cold |
-| Vault Storage | Backblaze B2 | datadrop-vault |
+| Object Storage | Backblaze B2 | datadrop-cold (single bucket — all files, vault included; datadrop-vault kept only to serve pre-consolidation files) |
+| D1 Backups | Cloudflare R2 | datadrop-backup (daily JSONL export) |
 | Auth | Clerk | — |
 | Email | Resend | — |
-| SMS/OTP | MSG91 | — |
 | Payments | Razorpay | — |
 | Frontend | Cloudflare Pages | datadrop-app |
 
@@ -100,7 +99,7 @@ cd app && npm run dev
 
 **Authentication:** All API requests carry an `X-Session-Token` header. `validateSession()` in `shared/utils.js` verifies it against Clerk's session API and caches results in KV (5-minute TTL) to avoid hitting Clerk on every request.
 
-**Storage:** All files go to Backblaze B2. Regular files use the cold bucket, vault files use the vault bucket. No Cloudflare R2 in use.
+**Storage:** All files go to a single Backblaze B2 bucket (`datadrop-cold`, aka `b2_main`) — `resolveUploadBucket()` in `shared/utils.js` always resolves new uploads there regardless of vault status; Vault files are encrypted client-side before upload, so sharing a bucket doesn't affect zero-knowledge guarantees. The separate `datadrop-vault` bucket/credentials still exist only to read/delete files uploaded before the single-bucket consolidation (migration_v5). Cloudflare R2 (`datadrop-backup`) is used for daily D1 database backups, not file storage.
 
 **E2EE Vault:**
 - V1 (legacy): PIN → PBKDF2 → AES-256 vault key → encrypt file client-side before upload
@@ -108,14 +107,14 @@ cd app && npm run dev
 
 **Chunked uploads:** Files > 100 MB use B2 large file API (multi-part). Upload worker handles the proxy — browser sends chunks directly to `datadrop-upload` worker which forwards to B2.
 
-**Queue:** File migrations (files→vault, vault→files, team moves) are queued as messages. The `migration/index.js` queue consumer processes them asynchronously to avoid Worker CPU time limits.
+**Queue:** `migration/index.js` is the queue consumer, handling `INSERT_FILE` (confirm a completed upload into D1 and bill for it), `DELETE_FILE_FROM_BUCKET` (async B2 object deletion), and `DELETE_USER_DATA` (full account-data wipe on account deletion) — kept off the request path to avoid Worker CPU time limits.
 
 **Billing:** Razorpay wallet model. Users top up a wallet; storage costs (₹/GB/month) are deducted on the 1st of each month via cron. Bill preview is computed on the last days of the month.
 
 **Cron schedule (UTC):**
 - `0 18 1 * *` — Monthly billing deduction (00:05 IST)
 - `0 18 28-31 * *` — End-of-month bill preview
-- `0 20 * * *` — Daily B2 backup (02:00 IST)
+- `0 20 * * *` — Daily D1 → R2 backup (JSONL export) + trash cleanup (02:00 IST)
 - `0 2 * * *` — Trial management (07:30 IST)
 - `0 * * * *` — Hourly storage reconciliation
 
